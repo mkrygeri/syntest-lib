@@ -1,0 +1,7 @@
+test_name,test_type,target,site_name,site_type,site_lat,site_lon,site_address,site_city,site_country,site_postal_code,labels,dns_servers,agent_names
+"DNS Grid - Root Domain A Records",dns_grid,example.com,US East Coast DC,SITE_TYPE_DATA_CENTER,40.7128,-74.0060,123 Broadway,New York,USA,10001,"dns-grid,critical,production,a-records","8.8.8.8,1.1.1.1,208.67.222.222","US-East-Primary,US-East-Secondary"
+"DNS Grid - Subdomain Resolution", dns_grid,api.example.com,US West Coast DC,SITE_TYPE_DATA_CENTER,37.7749,-122.4194,1 Market St,San Francisco,USA,94105,"dns-grid,api,production","8.8.8.8,8.8.4.4,1.1.1.1,1.0.0.1","US-West-Primary,US-West-Secondary"
+"DNS Grid - Mail Server Records",dns_grid,example.com,European DC,SITE_TYPE_DATA_CENTER,51.5074,-0.1278,1 London Bridge,London,UK,SE1 9GF,"dns-grid,mail,production,mx-records","8.8.8.8,1.1.1.1,208.67.222.222,208.67.220.220","EU-Primary,EU-Secondary"
+"DNS Grid - CDN Endpoint",dns_grid,cdn.example.com,Asia Pacific DC,SITE_TYPE_DATA_CENTER,35.6762,139.6503,1-1 Shibuya,Tokyo,Japan,150-0002,"dns-grid,cdn,performance","8.8.8.8,1.1.1.1","Asia-Primary"
+"DNS Grid - Load Balancer",dns_grid,lb.example.com,US Central DC,SITE_TYPE_DATA_CENTER,41.8781,-87.6298,100 N Riverside,Chicago,USA,60606,"dns-grid,load-balancer,critical","8.8.8.8,8.8.4.4,1.1.1.1,1.0.0.1,208.67.222.222","US-Central-1,US-Central-2"
+"DNS Grid - Backup Domain",dns_grid,backup.example.com,Disaster Recovery Site,SITE_TYPE_DATA_CENTER,39.7392,-104.9903,1801 California St,Denver,USA,80202,"dns-grid,backup,disaster-recovery","8.8.8.8,1.1.1.1",

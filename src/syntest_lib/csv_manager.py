@@ -185,7 +185,7 @@ class CSVTestManager:
                 result["labels_created"] += 1
 
         # Ensure site exists and get agents
-        site_agents = []
+        agents = []
         if site_name:
             site = self._ensure_site_exists(test_data)
             if site and site_name not in self._existing_sites:
@@ -499,6 +499,15 @@ class CSVTestManager:
             elif test_type == "dns":
                 servers = test_data.get("dns_servers", "8.8.8.8,1.1.1.1").split(",")
                 test = self.generator.create_dns_test(
+                    name=test_name,
+                    target=target,
+                    servers=[s.strip() for s in servers],
+                    agent_ids=agents,
+                    labels=labels,
+                )
+            elif test_type == "dns_grid":
+                servers = test_data.get("dns_servers", "8.8.8.8,1.1.1.1").split(",")
+                test = self.generator.create_dns_grid_test(
                     name=test_name,
                     target=target,
                     servers=[s.strip() for s in servers],
