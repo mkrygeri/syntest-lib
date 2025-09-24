@@ -1,0 +1,70 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "syntest-lib"
+version = "0.1.0"
+description = "A comprehensive Python library for managing synthetic tests, labels, and sites using Kentik APIs with CSV-based bulk management"
+readme = "README.md"
+license = "MIT"
+authors = [
+    {name = "Mike Krygeri", email = "mkrygeri@users.noreply.github.com"}
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+requires-python = ">=3.8"
+dependencies = [
+    "requests>=2.28.0",
+    "pydantic>=2.0.0",
+    "typing-extensions>=4.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "black>=22.0",
+    "isort>=5.10",
+    "flake8>=5.0",
+    "mypy>=1.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/mkrygeri/syntest-lib"
+Repository = "https://github.com/mkrygeri/syntest-lib"
+Issues = "https://github.com/mkrygeri/syntest-lib/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/syntest_lib"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/src",
+    "/tests",
+    "/README.md",
+    "/LICENSE",
+]
+
+[tool.black]
+line-length = 88
+target-version = ['py38']
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
