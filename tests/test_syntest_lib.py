@@ -65,6 +65,8 @@ class TestTestGenerator(unittest.TestCase):
         
         assert test.name == "Test Hostname Test"
         assert test.type == "hostname"
+        assert test.settings is not None
+        assert test.settings.hostname is not None
         assert test.settings.hostname.target == "example.com"
     
     def test_create_dns_test(self):
@@ -79,6 +81,8 @@ class TestTestGenerator(unittest.TestCase):
         
         assert test.name == "Test DNS Test"
         assert test.type == "dns"
+        assert test.settings is not None
+        assert test.settings.dns is not None
         assert test.settings.dns.target == "example.com"
         assert test.settings.dns.servers == ["8.8.8.8"]
         assert test.settings.dns.record_type == DNSRecord.A
@@ -96,6 +100,8 @@ class TestTestGenerator(unittest.TestCase):
         
         assert test.name == "Test URL Test"
         assert test.type == "url"
+        assert test.settings is not None
+        assert test.settings.url is not None
         assert test.settings.url.target == "https://example.com"
         assert test.settings.url.method == "GET"
         assert test.settings.url.headers == {"User-Agent": "test"}
@@ -113,6 +119,8 @@ class TestTestGenerator(unittest.TestCase):
         
         assert test.name == "Test Page Load Test"
         assert test.type == "page_load"
+        assert test.settings is not None
+        assert test.settings.page_load is not None
         assert test.settings.page_load.target == "https://example.com"
         assert test.settings.page_load.css_selectors == {"main": "main"}
         assert "page-load" in test.settings.tasks
@@ -129,6 +137,8 @@ class TestTestGenerator(unittest.TestCase):
         
         assert test.name == "Test Agent Test"
         assert test.type == "agent"
+        assert test.settings is not None
+        assert test.settings.agent is not None
         assert test.settings.agent.target == "agent-3"
         assert test.settings.agent.reciprocal is True
         assert "throughput" in test.settings.tasks
@@ -141,6 +151,7 @@ class TestTestGenerator(unittest.TestCase):
             agent_ids=["agent-1"]
         )
         
+        assert test.settings is not None
         health = test.settings.health_settings
         assert health is not None
         assert health.latency_critical == 500000
@@ -279,7 +290,7 @@ class TestLabelsAndSites(unittest.TestCase):
         # Create site using field alias
         site_data = {
             "title": "Test Site",
-            "type": SiteType.DATA_CENTER,
+            "type": SiteType.SITE_TYPE_DATA_CENTER,
             "lat": 40.7128,
             "lon": -74.0060,
             "postalAddress": address.model_dump()  # Use alias and dict representation
@@ -287,7 +298,7 @@ class TestLabelsAndSites(unittest.TestCase):
         site = Site.model_validate(site_data)
 
         self.assertEqual(site.title, "Test Site")
-        self.assertEqual(site.type, SiteType.DATA_CENTER)
+        self.assertEqual(site.type, SiteType.SITE_TYPE_DATA_CENTER)
         self.assertEqual(site.lat, 40.7128)
         self.assertEqual(site.lon, -74.0060)
         # Check that postal_address is not None before accessing its attributes

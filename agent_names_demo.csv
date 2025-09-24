@@ -1,0 +1,6 @@
+test_name,test_type,target,site_name,site_type,site_lat,site_lon,site_address,site_city,site_country,site_postal_code,labels,dns_servers,agent_names
+Critical API Health Check - US East,url,https://api.example.com/health,New York DC,SITE_TYPE_DATA_CENTER,40.7128,-74.0060,123 Broadway,New York,USA,10001,"env:production, priority:critical, team:platform, type:api-health","8.8.8.8,1.1.1.1","US-East-Primary,US-East-Secondary"
+DNS Resolution - Google,dns,google.com,London Office,SITE_TYPE_BRANCH,51.5074,-0.1278,1 London Bridge,London,UK,SE1 9GF,"env:production, priority:high, team:network-ops, type:dns","8.8.8.8,1.1.1.1,208.67.222.222","London-Primary,London-Backup"
+Website Load Test - Homepage,page_load,https://www.example.com,San Francisco DC,SITE_TYPE_DATA_CENTER,37.7749,-122.4194,1 Market Street,San Francisco,USA,94105,"env:production, priority:medium, team:frontend, type:page-load",,
+IP Connectivity - Core Router,ip,10.1.1.1,Tokyo Branch,SITE_TYPE_BRANCH,35.6762,139.6503,1-1 Shibuya,Tokyo,Japan,150-0002,"env:production, priority:critical, team:network-ops, type:connectivity",,Tokyo-Main
+Hostname Resolution - Internal Service,hostname,internal.example.com,Frankfurt DC,SITE_TYPE_DATA_CENTER,50.1109,8.6821,Mainzer Landstraße 1,Frankfurt,Germany,60329,"env:staging, priority:medium, team:platform, type:hostname",,

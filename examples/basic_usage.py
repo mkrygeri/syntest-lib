@@ -4,8 +4,7 @@ Example usage of the syntest-lib library.
 
 from datetime import datetime, timedelta
 
-from syntest_lib import SyntheticsClient, TestGenerator
-from syntest_lib.models import DNSRecord, IPFamily, TestStatus
+from syntest_lib import SyntheticsClient, TestGenerator, DNSRecord, IPFamily, TestStatus
 from syntest_lib.utils import format_test_summary, get_time_range_for_results
 
 

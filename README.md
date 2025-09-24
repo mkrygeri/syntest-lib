@@ -24,6 +24,7 @@ A comprehensive Python library for managing synthetic tests, labels, and sites u
 
 ### 📊 **CSV-Based Test Management** ⭐ **NEW**
 - **Bulk test creation and management from CSV files**
+- **Agent specification by name with automatic ID lookup via API** 🆕
 - **Automatic site and label creation when missing**
 - **Intelligent test updates when CSV data changes**
 - **Cleanup of tests no longer in CSV (with management tags)**
@@ -104,6 +105,7 @@ DNS Resolution,dns,google.com,London Office,SITE_TYPE_BRANCH,51.5074,-0.1278,"en
 - ✅ **Automatic Resource Creation**: Missing labels and sites are created automatically
 - ✅ **Intelligent Updates**: Only updates tests when CSV data actually changes  
 - ✅ **Safe Cleanup**: Removes only tests with management tags, preserves manual tests
+- ✅ **Agent Name Support**: Specify agents by name with automatic ID lookup 🆕
 - ✅ **Site-Based Agents**: Automatically assigns agents based on site proximity
 - ✅ **Rich Metadata**: Supports geographical coordinates, postal addresses, custom labels
 
@@ -121,6 +123,7 @@ DNS Resolution,dns,google.com,London Office,SITE_TYPE_BRANCH,51.5074,-0.1278,"en
 - `site_lat`, `site_lon`: Geographical coordinates
 - `site_address`, `site_city`, `site_country`, `site_postal_code`: Address info
 - `dns_servers`: DNS servers for DNS tests (comma-separated)
+- `agent_names`: Human-readable agent names (comma-separated) 🆕
 
 ## Advanced Examples
 

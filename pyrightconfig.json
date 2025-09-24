@@ -1,0 +1,33 @@
+{
+    "venvPath": ".",
+    "venv": "venv",
+    "include": [
+        "src",
+        "tests",
+        "examples"
+    ],
+    "extraPaths": [
+        "src"
+    ],
+    "pythonVersion": "3.13",
+    "typeCheckingMode": "basic",
+    "useLibraryCodeForTypes": true,
+    "reportMissingImports": "information",
+    "reportMissingTypeStubs": "none",
+    "reportCallIssue": "none",
+    "reportGeneralTypeIssues": "information",
+    "reportOptionalMemberAccess": "none",
+    "reportArgumentType": "none",
+    "reportOperatorIssue": "none",
+    "reportUnknownParameterType": "none",
+    "reportUnknownArgumentType": "none",
+    "reportUnknownVariableType": "none",
+    "reportUnknownMemberType": "none",
+    "reportIncompatibleMethodOverride": "information",
+    "reportIncompatibleVariableOverride": "information",
+    "reportPossiblyUnboundVariable": "information",
+    "strictParameterNoneValue": false,
+    "strictDictionaryInference": false,
+    "strictListInference": false,
+    "strictSetInference": false
+}

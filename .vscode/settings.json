@@ -1,3 +1,24 @@
 {
-    "idf.pythonInstallPath": "/opt/homebrew/bin/python3"
+    "idf.pythonInstallPath": "/opt/homebrew/bin/python3",
+    "python.defaultInterpreter": "/Users/mikek/syntest-lib/venv/bin/python",
+    "python.pythonPath": "/Users/mikek/syntest-lib/venv/bin/python",
+    "python.analysis.extraPaths": [
+        "/Users/mikek/syntest-lib/src",
+        "/Users/mikek/syntest-lib/venv/lib/python3.13/site-packages"
+    ],
+    "python.analysis.autoSearchPaths": true,
+    "python.analysis.autoImportCompletions": true,
+    "python.terminal.activateEnvironment": true,
+    "python.analysis.typeCheckingMode": "basic",
+    "python.terminal.activateEnvInCurrentTerminal": true,
+    "python.envFile": "${workspaceFolder}/.env",
+    "python.analysis.diagnosticMode": "workspace",
+    "python.analysis.indexing": true,
+    "python.analysis.packageIndexDepths": [
+        {
+            "name": "",
+            "depth": 2
+        }
+    ],
+    "python.analysis.stubPath": "./typings"
 }

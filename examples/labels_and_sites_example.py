@@ -66,7 +66,7 @@ def main():
     sites = [
         Site(
             title="New York Data Center",
-            type=SiteType.DATA_CENTER,
+            type=SiteType.SITE_TYPE_DATA_CENTER,
             lat=40.7128,
             lon=-74.0060,
             postal_address=PostalAddress(
@@ -80,7 +80,7 @@ def main():
         ),
         Site(
             title="London Office",
-            type=SiteType.BRANCH,
+            type=SiteType.SITE_TYPE_BRANCH,
             lat=51.5074,
             lon=-0.1278,
             postal_address=PostalAddress(
@@ -94,7 +94,7 @@ def main():
         ),
         Site(
             title="Tokyo Branch",
-            type=SiteType.BRANCH,
+            type=SiteType.SITE_TYPE_BRANCH,
             lat=35.6762,
             lon=139.6503,
             postal_address=PostalAddress(
