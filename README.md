@@ -93,37 +93,56 @@ print(f"🏷️  Created: {stats['labels_created']} labels")
 print(f"🏢 Created: {stats['sites_created']} sites")
 ```
 
-#### CSV Format Example
+#### 🚀 **Simplified CSV Format** (Minimal Required Fields)
 
 ```csv
-test_name,test_type,target,site_name,site_type,site_lat,site_lon,labels
-API Health Check,url,https://api.example.com/health,New York DC,SITE_TYPE_DATA_CENTER,40.7128,-74.0060,"env:production, priority:critical, team:platform"
-DNS Resolution,dns,google.com,London Office,SITE_TYPE_BRANCH,51.5074,-0.1278,"env:production, priority:high, team:network-ops"
+test_name,test_type,target
+API Health Check,url,https://api.example.com/health
+DNS Resolution,dns,google.com
+Ping Test,ip,8.8.8.8
+```
+
+**Sensible Defaults Applied:**
+- `site_name`: "Default Site"
+- `labels`: "csv-managed"
+- `dns_servers`: "8.8.8.8,1.1.1.1"
+- `agent_names`: Empty (uses site-based agents)
+
+#### 📋 **Full CSV Format** (All Optional Fields)
+
+```csv
+test_name,test_type,target,site_name,labels,dns_servers,agent_names
+API Health Check,url,https://api.example.com/health,New York DC,"env:production,priority:critical",,Agent-NYC-1
+DNS Resolution,dns,google.com,London Office,"env:production,priority:high",8.8.8.8;1.1.1.1,Agent-London-1;Agent-London-2
+DNS Grid Test,dns_grid,example.com,Tokyo Branch,"grid-tests,monitoring",8.8.8.8;1.1.1.1;9.9.9.9,Agent-Tokyo-1
 ```
 
 **Key CSV Features:**
+- ✅ **Minimal Requirements**: Only 3 columns needed (test_name, test_type, target)
 - ✅ **Automatic Resource Creation**: Missing labels and sites are created automatically
 - ✅ **Intelligent Updates**: Only updates tests when CSV data actually changes  
 - ✅ **Safe Cleanup**: Removes only tests with management tags, preserves manual tests
 - ✅ **Agent Name Support**: Specify agents by name with automatic ID lookup 🆕
 - ✅ **Site-Based Agents**: Automatically assigns agents based on site proximity
-- ✅ **Rich Metadata**: Supports geographical coordinates, postal addresses, custom labels
+- ✅ **DNS Grid Tests**: Support for DNS grid testing with multiple servers 🆕
 
 #### CSV Column Reference
 
-**Required Columns:**
+**Required Columns (Only 3!):**
 - `test_name`: Unique name for the test
-- `test_type`: `ip`, `hostname`, `url`, `dns`, or `page_load`
+- `test_type`: `ip`, `hostname`, `url`, `dns`, `dns_grid`, or `page_load`
 - `target`: IP address, hostname, or URL to test
-- `site_name`: Name of the site for agent assignment
-- `labels`: Comma-separated list of labels
 
-**Optional Columns:**
+**Optional Columns (All have sensible defaults):**
+- `site_name`: Name of site for agent assignment (default: "Default Site")
+- `labels`: Comma-separated labels (default: "csv-managed")
+- `dns_servers`: DNS servers for DNS/DNS grid tests (default: "8.8.8.8,1.1.1.1")
+- `agent_names`: Agent names, comma-separated (default: site-based agents)
+
+**Additional Site Columns (for creating new sites):**
 - `site_type`: `SITE_TYPE_DATA_CENTER`, `SITE_TYPE_BRANCH`, etc.
 - `site_lat`, `site_lon`: Geographical coordinates
 - `site_address`, `site_city`, `site_country`, `site_postal_code`: Address info
-- `dns_servers`: DNS servers for DNS tests (comma-separated)
-- `agent_names`: Human-readable agent names (comma-separated) 🆕
 
 ## Advanced Examples
 

@@ -19,16 +19,16 @@ def show_dns_grid_code_example():
     
     # Example DNS grid test
     test = generator.create_dns_grid_test(
-        name="DNS Grid - Example Domain",
-        target="example.com",
+        name="DNS Grid - Kentik.com Domain",
+        target="kentik.com",
         servers=[
             "8.8.8.8",          # Google DNS
             "1.1.1.1",          # Cloudflare
             "208.67.222.222"    # OpenDNS
         ],
-        agent_ids=["agent-1", "agent-2", "agent-3"],
+        agent_ids=["kubernetes-master", "orangepi3", "rpi5-1"],
         record_type=DNSRecord.A,
-        labels=["dns-grid", "production"]
+        labels=["DDI", "Infoblox", "Bulk-managed"]
     )
     
     print(f"Test Name: {test.name}")

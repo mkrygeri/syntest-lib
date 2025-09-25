@@ -1,0 +1,5 @@
+test_name,test_type,target,site_name,labels,dns_servers,agent_names
+Basic Web Test,url,https://google.com,,,
+Simple Ping Test,ip,8.8.8.8,New York DC,production,
+DNS Check,dns,google.com,,dns-tests,8.8.8.8,
+Custom DNS Grid,dns_grid,example.com,London Office,grid-tests,8.8.8.8;1.1.1.1,Agent-London-1

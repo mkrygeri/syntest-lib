@@ -14,6 +14,7 @@ Key Features of DNS Grid Tests:
 """
 
 import logging
+import os
 from typing import List
 from src.syntest_lib import SyntheticsClient, TestGenerator, CSVTestManager
 from src.syntest_lib.models import DNSRecord, TestStatus
@@ -29,7 +30,11 @@ def create_dns_grid_test_programmatically():
     logger.info("=" * 60)
     
     # Initialize client and generator
-    client = SyntheticsClient(email="user@company.com", api_token="your-token")
+    # Get credentials from environment variables (recommended)
+    email = os.getenv("KENTIK_EMAIL", "email@example.com")
+    api_token = os.getenv("KENTIK_API_TOKEN", "my-token")
+    
+    client = SyntheticsClient(email=email, api_token=api_token)
     generator = TestGenerator()
     
     # Example 1: Basic DNS grid test
@@ -46,9 +51,9 @@ def create_dns_grid_test_programmatically():
             "208.67.222.222", # OpenDNS Primary
             "208.67.220.220"  # OpenDNS Secondary
         ],
-        agent_ids=["agent-us-east-1", "agent-us-west-1", "agent-eu-1"],
+        agent_ids=["kubernetes-master", "orangepi3", "rpi5-1"],
         record_type=DNSRecord.A,
-        labels=["dns-grid", "critical-infrastructure", "production"],
+        labels=["DDI", "Infoblox", "Bulk-managed"],
         notes="Monitor DNS resolution across major public DNS providers"
     )
     
@@ -85,14 +90,14 @@ def create_dns_grid_csv_example():
     logger.info("\n🗂️  Creating DNS Grid CSV Example")
     logger.info("=" * 60)
     
-    csv_content = '''test_name,test_type,target,site_name,site_type,site_lat,site_lon,site_address,site_city,site_country,site_postal_code,labels,dns_servers,agent_names
-"DNS Grid - Root Domain A Records",dns_grid,example.com,US East Coast DC,SITE_TYPE_DATA_CENTER,40.7128,-74.0060,123 Broadway,New York,USA,10001,"dns-grid,critical,production,a-records","8.8.8.8,1.1.1.1,208.67.222.222","US-East-Primary,US-East-Secondary"
-"DNS Grid - Subdomain Resolution", dns_grid,api.example.com,US West Coast DC,SITE_TYPE_DATA_CENTER,37.7749,-122.4194,1 Market St,San Francisco,USA,94105,"dns-grid,api,production","8.8.8.8,8.8.4.4,1.1.1.1,1.0.0.1","US-West-Primary,US-West-Secondary"
-"DNS Grid - Mail Server Records",dns_grid,example.com,European DC,SITE_TYPE_DATA_CENTER,51.5074,-0.1278,1 London Bridge,London,UK,SE1 9GF,"dns-grid,mail,production,mx-records","8.8.8.8,1.1.1.1,208.67.222.222,208.67.220.220","EU-Primary,EU-Secondary"
-"DNS Grid - CDN Endpoint",dns_grid,cdn.example.com,Asia Pacific DC,SITE_TYPE_DATA_CENTER,35.6762,139.6503,1-1 Shibuya,Tokyo,Japan,150-0002,"dns-grid,cdn,performance","8.8.8.8,1.1.1.1","Asia-Primary"
-"DNS Grid - Load Balancer",dns_grid,lb.example.com,US Central DC,SITE_TYPE_DATA_CENTER,41.8781,-87.6298,100 N Riverside,Chicago,USA,60606,"dns-grid,load-balancer,critical","8.8.8.8,8.8.4.4,1.1.1.1,1.0.0.1,208.67.222.222","US-Central-1,US-Central-2"
-"DNS Grid - Backup Domain",dns_grid,backup.example.com,Disaster Recovery Site,SITE_TYPE_DATA_CENTER,39.7392,-104.9903,1801 California St,Denver,USA,80202,"dns-grid,backup,disaster-recovery","8.8.8.8,1.1.1.1",'''
-    
+    csv_content = '''test_name,test_type,target,NH - Datacenter,labels,dns_servers,agent_names
+"DNS Grid - Root Domain A Records",dns_grid,example.com,NH - Datacenter,"dns-grid,critical,production,a-records","8.8.8.8,1.1.1.1,208.67.222.222","kubernetes-master"
+"DNS Grid - Subdomain Resolution", dns_grid,api.example.com,NH - Datacenter,"dns-grid,api,production","8.8.8.8,8.8.4.4,1.1.1.1,1.0.0.1","kubernetes-master"
+"DNS Grid - Mail Server Records",dns_grid,example.com,NH - Datacenter,"dns-grid,mail,production,mx-records","8.8.8.8,1.1.1.1,208.67.222.222,208.67.220.220","kubernetes-master"
+"DNS Grid - CDN Endpoint",dns_grid,cdn.example.com,NH - Datacenter,"dns-grid,cdn,performance","8.8.8.8,1.1.1.1","kubernetes-master"
+"DNS Grid - Load Balancer",dns_grid,lb.example.com,NH - Datacenter,"dns-grid,load-balancer,critical","8.8.8.8,8.8.4.4,1.1.1.1,1.0.0.1,208.67.222.222","kubernetes-master"
+"DNS Grid - Backup Domain",dns_grid,backup.example.com,NH - Datacenter,"dns-grid,backup,disaster-recovery","8.8.8.8,1.1.1.1",'''
+
     # Write the CSV file
     with open("dns_grid_tests.csv", "w", encoding="utf-8") as f:
         f.write(csv_content)
@@ -118,8 +123,12 @@ def demonstrate_csv_processing():
     logger.info("=" * 60)
     
     try:
-        # Initialize CSV manager
-        client = SyntheticsClient(email="demo@example.com", api_token="demo-token")
+        # Initialize CSV manager  
+        # Use environment variables for credentials
+        email = os.getenv("KENTIK_EMAIL", "demo@example.com")
+        api_token = os.getenv("KENTIK_API_TOKEN", "demo-token")
+        
+        client = SyntheticsClient(email=email, api_token=api_token)
         generator = TestGenerator()
         csv_manager = CSVTestManager(client, generator)
         

@@ -38,13 +38,17 @@ class TestGenerator:
         """Initialize the test generator."""
         pass
 
-    def _create_default_health_settings(self) -> HealthSettings:
+    def _create_default_health_settings(self, test_type: str = "ip") -> HealthSettings:
         """
-        Create default health settings for tests.
+        Create default health settings for tests based on test type.
+
+        Args:
+            test_type: Type of test (ip, dns, dns_grid, url)
 
         Returns:
             Default health settings configuration
         """
+        # Base settings for all test types
         health_dict = {
             "latencyCritical": 500000,  # 500ms in microseconds
             "latencyWarning": 250000,  # 250ms in microseconds
@@ -52,13 +56,24 @@ class TestGenerator:
             "packetLossWarning": 2.0,  # 2%
             "jitterCritical": 100000,  # 100ms in microseconds
             "jitterWarning": 50000,  # 50ms in microseconds
-            "httpLatencyCritical": 3000000,  # 3s in microseconds
-            "httpLatencyWarning": 1500000,  # 1.5s in microseconds
-            "httpValidCodes": [200, 201, 202, 204, 301, 302, 304],
-            "dnsValidCodes": [0],  # 0 = NOERROR
-            "dnsLatencyCritical": 1000000,  # 1s in microseconds
-            "dnsLatencyWarning": 500000,  # 500ms in microseconds
         }
+        
+        # Add DNS-specific settings for DNS tests
+        if test_type in ["dns", "dns_grid"]:
+            health_dict.update({
+                "dnsValidCodes": [0],  # 0 = NOERROR
+                "dnsLatencyCritical": 1000000,  # 1s in microseconds
+                "dnsLatencyWarning": 500000,  # 500ms in microseconds
+            })
+        
+        # Add HTTP-specific settings for URL tests
+        if test_type == "url":
+            health_dict.update({
+                "httpLatencyCritical": 3000000,  # 3s in microseconds
+                "httpLatencyWarning": 1500000,  # 1.5s in microseconds
+                "httpValidCodes": [200, 201, 202, 204, 301, 302, 304],
+            })
+        
         return HealthSettings.model_validate(health_dict)
 
     def _create_default_ping_settings(self) -> TestPingSettings:
@@ -133,7 +148,7 @@ class TestGenerator:
             "ip": ip_test,
             "agentIds": agent_ids,
             "tasks": ["ping", "traceroute"],
-            "healthSettings": health_settings or self._create_default_health_settings(),
+            "healthSettings": health_settings or self._create_default_health_settings("ip"),
             "ping": ping_settings or self._create_default_ping_settings(),
             "trace": trace_settings or self._create_default_trace_settings(),
             "period": period,
@@ -192,7 +207,7 @@ class TestGenerator:
             hostname=hostname_test,
             agent_ids=agent_ids,
             tasks=["ping", "traceroute"],
-            health_settings=health_settings or self._create_default_health_settings(),
+            health_settings=health_settings or self._create_default_health_settings("ip"),
             ping=ping_settings or self._create_default_ping_settings(),
             trace=trace_settings or self._create_default_trace_settings(),
             period=period,
@@ -258,7 +273,7 @@ class TestGenerator:
             "dns": dns_test,
             "agentIds": agent_ids,
             "tasks": ["dns"],
-            "healthSettings": health_settings or self._create_default_health_settings(),
+            "healthSettings": health_settings or self._create_default_health_settings("dns"),
             "period": period,
             "family": family,
             "notificationChannels": notification_channels or [],
@@ -338,7 +353,7 @@ class TestGenerator:
             url=url_test,
             agent_ids=agent_ids,
             tasks=tasks,
-            health_settings=health_settings or self._create_default_health_settings(),
+            health_settings=health_settings or self._create_default_health_settings("url"),
             period=period,
             family=family,
             notification_channels=notification_channels or [],
@@ -419,7 +434,7 @@ class TestGenerator:
             "pageLoad": page_load_test,
             "agentIds": agent_ids,
             "tasks": tasks,
-            "healthSettings": health_settings or self._create_default_health_settings(),
+            "healthSettings": health_settings or self._create_default_health_settings("url"),
             "period": period,
             "family": family,
             "notificationChannels": notification_channels or [],
@@ -497,7 +512,7 @@ class TestGenerator:
             agent=agent_test,
             agent_ids=source_agent_ids,
             tasks=tasks,
-            health_settings=health_settings or self._create_default_health_settings(),
+            health_settings=health_settings or self._create_default_health_settings("ip"),
             ping=ping_settings or self._create_default_ping_settings(),
             trace=trace_settings or self._create_default_trace_settings(),
             period=period,
@@ -564,7 +579,7 @@ class TestGenerator:
             network_grid=grid_test,
             agent_ids=agent_ids,
             tasks=["ping", "traceroute"],
-            health_settings=health_settings or self._create_default_health_settings(),
+            health_settings=health_settings or self._create_default_health_settings("ip"),
             ping=ping_settings or self._create_default_ping_settings(),
             trace=trace_settings or self._create_default_trace_settings(),
             period=period,
@@ -622,7 +637,7 @@ class TestGenerator:
             network_mesh=mesh_test,
             agent_ids=agent_ids,
             tasks=["ping", "traceroute"],
-            health_settings=health_settings or self._create_default_health_settings(),
+            health_settings=health_settings or self._create_default_health_settings("ip"),
             ping=ping_settings or self._create_default_ping_settings(),
             trace=trace_settings or self._create_default_trace_settings(),
             period=period,
@@ -679,18 +694,18 @@ class TestGenerator:
         dns_test = DnsTest(
             target=target,
             servers=servers,
-            record_type=record_type,
+            recordType=record_type,  # Use alias instead of field name
             port=port,
         )
 
         settings = TestSettings(
-            dns_grid=dns_test,
-            agent_ids=agent_ids,
+            dnsGrid=dns_test,  # Use alias instead of dns_grid
+            agentIds=agent_ids,  # Use alias instead of agent_ids
             tasks=["dns"],
-            health_settings=health_settings or self._create_default_health_settings(),
+            healthSettings=health_settings or self._create_default_health_settings("dns_grid"),  # Use alias
             period=period,
             family=family,
-            notification_channels=notification_channels or [],
+            notificationChannels=notification_channels or [],  # Use alias
             notes=notes,
         )
 
@@ -763,7 +778,7 @@ class TestGenerator:
             flow=flow_test,
             agent_ids=agent_ids,
             tasks=["ping", "traceroute"],
-            health_settings=health_settings or self._create_default_health_settings(),
+            health_settings=health_settings or self._create_default_health_settings("ip"),
             ping=ping_settings or self._create_default_ping_settings(),
             trace=trace_settings or self._create_default_trace_settings(),
             period=period,

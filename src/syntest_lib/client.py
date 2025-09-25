@@ -3,6 +3,8 @@ Kentik API client for interacting with Synthetics, Labels, and Sites APIs.
 """
 
 
+import json
+import logging
 from datetime import datetime
 from typing import List, Optional
 from urllib.parse import urljoin
@@ -82,6 +84,7 @@ class SyntheticsClient:
         api_token: str,
         base_url: str = "https://grpc.api.kentik.com/synthetics/v202309",
         timeout: int = 30,
+        debug: bool = False,
     ):
         """
         Initialize the Synthetics API client.
@@ -91,11 +94,27 @@ class SyntheticsClient:
             api_token: API authentication token
             base_url: Base URL for the API (default: Kentik production)
             timeout: Request timeout in seconds (default: 30)
+            debug: Enable debug logging of requests/responses (default: False)
         """
         self.email = email
         self.api_token = api_token
         self.base_url = base_url
         self.timeout = timeout
+        self.debug = debug
+
+        # Setup logging
+        self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
+        if debug:
+            # Enable debug logging for this client
+            handler = logging.StreamHandler()
+            handler.setFormatter(logging.Formatter(
+                '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+            ))
+            self.logger.addHandler(handler)
+            self.logger.setLevel(logging.DEBUG)
+            
+            # Also enable requests library debug logging
+            logging.getLogger("urllib3.connectionpool").setLevel(logging.DEBUG)
 
         # Setup session with authentication headers
         self.session = requests.Session()
@@ -107,6 +126,62 @@ class SyntheticsClient:
                 "Accept": "application/json",
             }
         )
+
+    def enable_debug_logging(self, enable: bool = True):
+        """
+        Enable or disable debug logging for API requests and responses.
+        
+        Args:
+            enable: Whether to enable debug logging
+        """
+        self.debug = enable
+        if enable:
+            self.logger.setLevel(logging.DEBUG)
+            # Ensure we have a handler
+            if not self.logger.handlers:
+                handler = logging.StreamHandler()
+                handler.setFormatter(logging.Formatter(
+                    '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+                ))
+                self.logger.addHandler(handler)
+                
+            # Enable requests library debug logging
+            logging.getLogger("urllib3.connectionpool").setLevel(logging.DEBUG)
+        else:
+            self.logger.setLevel(logging.WARNING)
+            logging.getLogger("urllib3.connectionpool").setLevel(logging.WARNING)
+
+    def print_request_info(self, method: str, endpoint: str, data: Optional[dict] = None, params: Optional[dict] = None):
+        """
+        Print request information for debugging purposes.
+        
+        Args:
+            method: HTTP method
+            endpoint: API endpoint path
+            data: Request body data
+            params: Query parameters
+        """
+        url = urljoin(self.base_url + "/", endpoint.lstrip("/"))
+        
+        print(f"\n🔍 DEBUG: API Request Details")
+        print(f"   Method: {method}")
+        print(f"   URL: {url}")
+        print(f"   Headers:")
+        for key, value in self.session.headers.items():
+            # Mask sensitive data
+            if key.lower() in ['x-ch-auth-api-token', 'authorization']:
+                value = f"{value[:8]}***masked***"
+            print(f"     {key}: {value}")
+        
+        if params:
+            print(f"   Query Params: {params}")
+        
+        if data:
+            print(f"   Request Body:")
+            print(json.dumps(data, indent=4))
+        
+        print(f"   Base URL configured: {self.base_url}")
+        print("="*50)
 
     def _make_request(
         self,
@@ -132,6 +207,18 @@ class SyntheticsClient:
         """
         url = urljoin(self.base_url + "/", endpoint.lstrip("/"))
 
+        # Log request details
+        if self.debug or self.logger.isEnabledFor(logging.DEBUG):
+            self.logger.debug(f"=== API REQUEST ===")
+            self.logger.debug(f"Method: {method}")
+            self.logger.debug(f"URL: {url}")
+            self.logger.debug(f"Headers: {dict(self.session.headers)}")
+            if params:
+                self.logger.debug(f"Query Params: {params}")
+            if data:
+                self.logger.debug(f"Request Body: {json.dumps(data, indent=2)}")
+            self.logger.debug(f"==================")
+
         response = None
         try:
             response = self.session.request(
@@ -141,6 +228,21 @@ class SyntheticsClient:
                 params=params,
                 timeout=self.timeout,
             )
+
+            # Log response details
+            if self.debug or self.logger.isEnabledFor(logging.DEBUG):
+                self.logger.debug(f"=== API RESPONSE ===")
+                self.logger.debug(f"Status Code: {response.status_code}")
+                self.logger.debug(f"Response Headers: {dict(response.headers)}")
+                if response.content:
+                    try:
+                        response_json = response.json()
+                        self.logger.debug(f"Response Body: {json.dumps(response_json, indent=2)}")
+                    except (ValueError, json.JSONDecodeError):
+                        self.logger.debug(f"Response Body (raw): {response.text[:1000]}...")
+                else:
+                    self.logger.debug("Response Body: (empty)")
+                self.logger.debug(f"====================")
 
             # Check if request was successful
             response.raise_for_status()
@@ -152,19 +254,38 @@ class SyntheticsClient:
 
         except requests.exceptions.HTTPError as e:
             error_data = None
+            error_text = ""
             if response is not None:
                 try:
                     error_data = response.json()
                 except (ValueError, AttributeError):
-                    pass
+                    error_text = response.text
 
             status_code = response.status_code if response is not None else 500
+            
+            # Log detailed error information
+            self.logger.error(f"=== API ERROR ===")
+            self.logger.error(f"HTTP Error: {e}")
+            self.logger.error(f"Status Code: {status_code}")
+            self.logger.error(f"URL: {url}")
+            self.logger.error(f"Method: {method}")
+            if error_data:
+                self.logger.error(f"Error Response: {json.dumps(error_data, indent=2)}")
+            elif error_text:
+                self.logger.error(f"Error Text: {error_text}")
+            self.logger.error(f"=================")
+            
             raise SyntheticsAPIError(
                 f"API request failed: {e}",
                 status_code=status_code,
                 response_data=error_data,
             )
         except requests.exceptions.RequestException as e:
+            self.logger.error(f"=== REQUEST ERROR ===")
+            self.logger.error(f"Request Exception: {e}")
+            self.logger.error(f"URL: {url}")
+            self.logger.error(f"Method: {method}")
+            self.logger.error(f"=====================")
             raise SyntheticsAPIError(f"Request failed: {e}")
 
     # Test management methods

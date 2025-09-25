@@ -105,8 +105,9 @@ class CSVTestManager:
 
     def _read_csv_file(self, csv_file_path: str) -> List[Dict[str, str]]:
         """Read and validate CSV file structure."""
-        required_columns = {"test_name", "test_type", "target", "site_name", "labels"}
-        # agent_names and agent_ids are optional - if neither provided, will use site-based agents
+        # Simplified requirements - only essential fields required
+        required_columns = {"test_name", "test_type", "target"}
+        # All other fields are optional with sensible defaults
 
         csv_tests = []
         with open(csv_file_path, "r", newline="", encoding="utf-8") as csvfile:
@@ -121,6 +122,13 @@ class CSVTestManager:
                 # Skip empty rows
                 if not any(row.values()):
                     continue
+                
+                # Apply sensible defaults for optional fields
+                row.setdefault("site_name", "Default Site")
+                row.setdefault("labels", "csv-managed")
+                row.setdefault("dns_servers", "8.8.8.8,1.1.1.1")
+                row.setdefault("agent_names", "")  # Empty means use site-based agents
+                
                 csv_tests.append(row)
 
         return csv_tests
@@ -460,6 +468,7 @@ class CSVTestManager:
             "Tokyo Branch": ["agent-tyo-1"],
             "San Francisco DC": ["agent-sfo-1", "agent-sfo-2"],
             "Frankfurt DC": ["agent-fra-1"],
+            "Default Site": ["agent-default"],  # Default for simplified CSV
         }
 
         return site_agent_map.get(site_name, ["agent-default"])
