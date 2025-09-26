@@ -1,26 +1,35 @@
-<!-- Use this file to provide workspace-specific custom instructions to Copilot. For more details, visit https://code.visualstudio.com/docs/copilot/copilot-customization#_use-a-githubcopilotinstructionsmd-file -->
-- [x] Verify that the copilot-instructions.md file in the .github directory is created.
+# syntest-lib - Copilot Instructions
 
-- [x] Clarify Project Requirements
-	<!-- Python library for generating synthetic tests from Kentik Synthetics OpenAPI specification -->
+This is a Python library for managing Kentik synthetic tests, labels, and sites through CSV files and programmatic APIs.
 
-- [x] Scaffold the Project
-	<!-- Created Python project structure with pyproject.toml, src/, tests/, examples/ -->
+## Project Overview
 
-- [x] Customize the Project
-	<!-- Implemented test generators, API client, models, and utilities -->
+- **Purpose**: Simplified synthetic test management for enterprise monitoring
+- **Key Feature**: CSV-based bulk test management with automatic resource creation
+- **API Integration**: Kentik Synthetics, Labels, and Sites APIs (v202309)
+- **Architecture**: Clean separation between API client, test generators, and CSV managers
 
-- [x] Install Required Extensions
-	<!-- No extensions needed for Python project -->
+## Development Guidelines
 
-- [x] Compile the Project
-	<!-- Installed dependencies and verified setup with virtual environment -->
+When working on this project:
 
-- [x] Create and Run Task
-	<!-- Created task for running tests with coverage -->
+1. **Follow existing patterns**: The codebase uses Pydantic models for API serialization and clear separation of concerns
+2. **CSV-first approach**: The CSV management system is the primary use case - keep it simple and powerful
+3. **Rate limiting**: All API interactions include automatic rate limiting and retry logic
+4. **DNS focus**: Special attention to DNS and DNS grid test types
+5. **Enterprise scale**: Design for hundreds of tests across multiple sites
 
-- [x] Launch the Project
-	<!-- Skip debug mode -->
+## Key Components
 
-- [x] Ensure Documentation is Complete
-	<!-- Created comprehensive README and documentation -->
+- `SyntheticsClient`: Main API client with rate limiting and error handling
+- `TestGenerator`: Creates test configurations with sensible defaults
+- `CSVTestManager`: Bulk test management from CSV files
+- `models.py`: Pydantic models matching Kentik API schemas
+- `utils.py`: Helper functions for filtering and analysis
+
+## Code Style
+
+- Use type hints throughout
+- Comprehensive error handling with informative messages
+- Clear logging for debugging and audit trails
+- Minimal required parameters with sensible defaults
