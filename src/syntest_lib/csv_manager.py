@@ -9,6 +9,8 @@ import csv
 import logging
 from typing import Any, Dict, List, Optional, Set
 
+from .models import ActivationSettings
+
 from .client import SyntheticsAPIError, SyntheticsClient
 from .generators import TestGenerator
 from .label_models import Label
@@ -360,20 +362,25 @@ class CSVTestManager:
             if hasattr(response, "agents") and response.agents:
                 self._existing_agents = response.agents
                 
-                # Build comprehensive name-to-ID mapping
+                # Build comprehensive name-to-ID mapping (case-insensitive)
                 self._agent_name_to_id.clear()  # Clear any existing mappings
                 
                 for agent in self._existing_agents:
                     if not agent.id:
                         continue
-                        
-                    # Map by alias (primary agent name)
-                    if agent.alias:
-                        self._agent_name_to_id[agent.alias] = agent.id
-                        self.logger.debug(f"Mapped agent alias '{agent.alias}' -> {agent.id}")
                     
-                    # Also map by ID for direct lookups
-                    self._agent_name_to_id[agent.id] = agent.id
+                    # Only include private agents by default
+                    if agent.type != "private":
+                        self.logger.debug(f"Skipping agent '{agent.alias}' (type: {agent.type}) - only private agents allowed")
+                        continue
+                        
+                    # Map by alias (primary agent name) - case-insensitive
+                    if agent.alias:
+                        self._agent_name_to_id[agent.alias.lower()] = agent.id
+                        self.logger.debug(f"Mapped agent alias '{agent.alias}' -> {agent.id} (case-insensitive)")
+                    
+                    # Also map by ID for direct lookups - case-insensitive
+                    self._agent_name_to_id[agent.id.lower()] = agent.id
                 
                 self.logger.info(f"Loaded {len(self._existing_agents)} agents with {len(self._agent_name_to_id)} name mappings")
                 
@@ -415,22 +422,26 @@ class CSVTestManager:
             if not name_or_id:
                 continue
             
-            # Check if it's in our mapping (could be name or ID)
-            if name_or_id in self._agent_name_to_id:
-                resolved_id = self._agent_name_to_id[name_or_id]
+            # Check if it's in our mapping (could be name or ID) - case-insensitive lookup
+            name_or_id_lower = name_or_id.lower()
+            if name_or_id_lower in self._agent_name_to_id:
+                resolved_id = self._agent_name_to_id[name_or_id_lower]
                 agent_ids.append(resolved_id)
-                if name_or_id != resolved_id:
-                    self.logger.debug(f"Mapped agent name '{name_or_id}' to ID '{resolved_id}'")
+                if name_or_id_lower != resolved_id.lower():
+                    self.logger.debug(f"Mapped agent name '{name_or_id}' to ID '{resolved_id}' (case-insensitive)")
                 else:
                     self.logger.debug(f"Using direct agent ID '{resolved_id}'")
             else:
                 missing_agents.append(name_or_id)
-                self.logger.error(f"Could not find agent '{name_or_id}' in API response")
+                self.logger.error(f"Could not find agent '{name_or_id}' in API response (case-insensitive search)")
         
         if missing_agents:
             # Get available agent names for helpful error message
-            available_names = [name for name in self._agent_name_to_id.keys() 
-                             if name != self._agent_name_to_id[name]]  # Exclude direct ID mappings
+            # Need to get original agent names (not lowercased) from _existing_agents
+            available_names = []
+            for agent in self._existing_agents:
+                if agent.alias and agent.alias.lower() != agent.id.lower():
+                    available_names.append(agent.alias)
             
             error_msg = f"Could not find agents: {missing_agents}"
             if available_names:
@@ -566,6 +577,32 @@ class CSVTestManager:
             # Update test
             updated_test = existing_test.model_copy()
             updated_test.labels = labels
+            
+            # Clean up test settings for DNS tests (remove unnecessary fields)
+            updated_test = self.generator._clean_dns_test_settings(updated_test)
+            
+            # Sanitize health settings to prevent API validation errors
+            if updated_test.settings and updated_test.settings.health_settings:
+                updated_test.settings.health_settings = self.generator._sanitize_health_settings(
+                    updated_test.settings.health_settings
+                )
+                
+                # Ensure required activation fields are present for DNS tests
+                if not updated_test.settings.health_settings.activation:
+                    updated_test.settings.health_settings.activation = ActivationSettings(
+                        grace_period="3",
+                        time_unit="m", 
+                        time_window="5",
+                        times="3"
+                    )
+                else:
+                    # Fill in missing activation fields
+                    if not updated_test.settings.health_settings.activation.grace_period:
+                        updated_test.settings.health_settings.activation.grace_period = "3"
+                    if not updated_test.settings.health_settings.activation.time_unit:
+                        updated_test.settings.health_settings.activation.time_unit = "m"
+                    if not updated_test.settings.health_settings.activation.time_window:
+                        updated_test.settings.health_settings.activation.time_window = "5"
 
             response = self.client.update_test(existing_test.id or "", updated_test)
             return response.test if hasattr(response, "test") and response.test else updated_test

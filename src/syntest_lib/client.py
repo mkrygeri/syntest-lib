@@ -5,11 +5,21 @@ Kentik API client for interacting with Synthetics, Labels, and Sites APIs.
 
 import json
 import logging
+import time
 from datetime import datetime
 from typing import List, Optional
 from urllib.parse import urljoin
 
 import requests
+
+
+class DateTimeJSONEncoder(json.JSONEncoder):
+    """Custom JSON encoder that handles datetime objects."""
+    
+    def default(self, obj):
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        return super().default(obj)
 
 from .label_models import (
     CreateLabelRequest,
@@ -126,6 +136,13 @@ class SyntheticsClient:
                 "Accept": "application/json",
             }
         )
+        
+        # Rate limiting tracking
+        self.rate_limit_remaining = None
+        self.rate_limit_reset = None
+        self.rate_limit_total = None
+        self.last_request_time = 0
+        self.min_request_interval = 0  # Minimum seconds between requests
 
     def enable_debug_logging(self, enable: bool = True):
         """
@@ -183,21 +200,93 @@ class SyntheticsClient:
         print(f"   Base URL configured: {self.base_url}")
         print("="*50)
 
+    def _update_rate_limits(self, response: requests.Response):
+        """Update rate limiting information from response headers."""
+        headers = response.headers
+        
+        # Common Kentik rate limit headers
+        try:
+            if 'x-ratelimit-remaining' in headers:
+                # Handle complex format like "60, 60;w=60"
+                remaining_str = headers['x-ratelimit-remaining'].split(',')[0].strip()
+                self.rate_limit_remaining = int(remaining_str)
+            elif 'x-rate-limit-remaining' in headers:
+                remaining_str = headers['x-rate-limit-remaining'].split(',')[0].strip()
+                self.rate_limit_remaining = int(remaining_str)
+        except (ValueError, IndexError):
+            self.logger.debug(f"Could not parse rate limit remaining: {headers.get('x-ratelimit-remaining', headers.get('x-rate-limit-remaining'))}")
+            
+        try:
+            if 'x-ratelimit-reset' in headers:
+                reset_str = headers['x-ratelimit-reset'].split(',')[0].strip()
+                self.rate_limit_reset = int(reset_str)
+            elif 'x-rate-limit-reset' in headers:
+                reset_str = headers['x-rate-limit-reset'].split(',')[0].strip()
+                self.rate_limit_reset = int(reset_str)
+        except (ValueError, IndexError):
+            self.logger.debug(f"Could not parse rate limit reset: {headers.get('x-ratelimit-reset', headers.get('x-rate-limit-reset'))}")
+            
+        try:
+            if 'x-ratelimit-limit' in headers:
+                # Handle complex format like "60, 60;w=60"
+                limit_str = headers['x-ratelimit-limit'].split(',')[0].strip()
+                self.rate_limit_total = int(limit_str)
+            elif 'x-rate-limit-limit' in headers:
+                limit_str = headers['x-rate-limit-limit'].split(',')[0].strip()
+                self.rate_limit_total = int(limit_str)
+        except (ValueError, IndexError):
+            self.logger.debug(f"Could not parse rate limit total: {headers.get('x-ratelimit-limit', headers.get('x-rate-limit-limit'))}")
+            
+        # Log rate limit status
+        if self.rate_limit_remaining is not None:
+            self.logger.debug(f"Rate limit: {self.rate_limit_remaining}/{self.rate_limit_total or 'unknown'} remaining")
+            
+            # Calculate backoff if getting close to limit
+            if self.rate_limit_total and self.rate_limit_remaining < self.rate_limit_total * 0.1:
+                # Less than 10% remaining - slow down significantly
+                self.min_request_interval = 2.0
+                self.logger.warning(f"Rate limit low ({self.rate_limit_remaining} remaining), slowing requests to {self.min_request_interval}s interval")
+            elif self.rate_limit_total and self.rate_limit_remaining < self.rate_limit_total * 0.25:
+                # Less than 25% remaining - moderate slowdown
+                self.min_request_interval = 1.0
+                self.logger.info(f"Rate limit getting low ({self.rate_limit_remaining} remaining), slowing requests to {self.min_request_interval}s interval")
+            elif self.rate_limit_total and self.rate_limit_remaining < self.rate_limit_total * 0.5:
+                # Less than 50% remaining - light slowdown
+                self.min_request_interval = 0.5
+                self.logger.info(f"Rate limit at 50% ({self.rate_limit_remaining} remaining), adding {self.min_request_interval}s delay between requests")
+            else:
+                # Plenty of headroom - reset to no delay
+                self.min_request_interval = 0
+
+    def _apply_rate_limiting(self):
+        """Apply rate limiting delay before making a request."""
+        current_time = time.time()
+        time_since_last = current_time - self.last_request_time
+        
+        if self.min_request_interval > 0 and time_since_last < self.min_request_interval:
+            sleep_time = self.min_request_interval - time_since_last
+            self.logger.debug(f"Rate limiting: sleeping {sleep_time:.2f}s")
+            time.sleep(sleep_time)
+        
+        self.last_request_time = time.time()
+
     def _make_request(
         self,
         method: str,
         endpoint: str,
         data: Optional[dict] = None,
         params: Optional[dict] = None,
+        max_retries: int = 3,
     ) -> dict:
         """
-        Make an HTTP request to the API.
+        Make an HTTP request to the API with automatic rate limiting and retry logic.
 
         Args:
             method: HTTP method (GET, POST, PUT, DELETE)
             endpoint: API endpoint path
             data: Request body data
             params: Query parameters
+            max_retries: Maximum number of retries for rate limited requests
 
         Returns:
             Response data as dictionary
@@ -207,86 +296,117 @@ class SyntheticsClient:
         """
         url = urljoin(self.base_url + "/", endpoint.lstrip("/"))
 
-        # Log request details
-        if self.debug or self.logger.isEnabledFor(logging.DEBUG):
-            self.logger.debug(f"=== API REQUEST ===")
-            self.logger.debug(f"Method: {method}")
-            self.logger.debug(f"URL: {url}")
-            self.logger.debug(f"Headers: {dict(self.session.headers)}")
-            if params:
-                self.logger.debug(f"Query Params: {params}")
-            if data:
-                self.logger.debug(f"Request Body: {json.dumps(data, indent=2)}")
-            self.logger.debug(f"==================")
+        for attempt in range(max_retries + 1):
+            # Apply rate limiting before making the request
+            self._apply_rate_limiting()
 
-        response = None
-        try:
-            response = self.session.request(
-                method=method,
-                url=url,
-                json=data,
-                params=params,
-                timeout=self.timeout,
-            )
-
-            # Log response details
+            # Log request details
             if self.debug or self.logger.isEnabledFor(logging.DEBUG):
-                self.logger.debug(f"=== API RESPONSE ===")
-                self.logger.debug(f"Status Code: {response.status_code}")
-                self.logger.debug(f"Response Headers: {dict(response.headers)}")
+                self.logger.debug(f"=== API REQUEST (attempt {attempt + 1}/{max_retries + 1}) ===")
+                self.logger.debug(f"Method: {method}")
+                self.logger.debug(f"URL: {url}")
+                self.logger.debug(f"Headers: {dict(self.session.headers)}")
+                if params:
+                    self.logger.debug(f"Query Params: {params}")
+                if data:
+                    self.logger.debug(f"Request Body: {json.dumps(data, indent=2, cls=DateTimeJSONEncoder)}")
+                self.logger.debug(f"==================")
+
+            response = None
+            try:
+                response = self.session.request(
+                    method=method,
+                    url=url,
+                    json=data,
+                    params=params,
+                    timeout=self.timeout,
+                )
+                
+                # Update rate limiting information from response headers
+                self._update_rate_limits(response)
+
+                # Log response details
+                if self.debug or self.logger.isEnabledFor(logging.DEBUG):
+                    self.logger.debug(f"=== API RESPONSE ===")
+                    self.logger.debug(f"Status Code: {response.status_code}")
+                    self.logger.debug(f"Response Headers: {dict(response.headers)}")
+                    if response.content:
+                        try:
+                            response_json = response.json()
+                            self.logger.debug(f"Response Body: {json.dumps(response_json, indent=2, cls=DateTimeJSONEncoder)}")
+                        except (ValueError, json.JSONDecodeError):
+                            self.logger.debug(f"Response Body (raw): {response.text[:1000]}...")
+                    else:
+                        self.logger.debug("Response Body: (empty)")
+                    self.logger.debug(f"====================")
+
+                # Check if request was successful
+                response.raise_for_status()
+
+                # Parse JSON response
                 if response.content:
+                    return response.json()
+                return {}
+
+            except requests.exceptions.HTTPError as e:
+                error_data = None
+                error_text = ""
+                if response is not None:
                     try:
-                        response_json = response.json()
-                        self.logger.debug(f"Response Body: {json.dumps(response_json, indent=2)}")
-                    except (ValueError, json.JSONDecodeError):
-                        self.logger.debug(f"Response Body (raw): {response.text[:1000]}...")
-                else:
-                    self.logger.debug("Response Body: (empty)")
-                self.logger.debug(f"====================")
+                        error_data = response.json()
+                    except (ValueError, AttributeError):
+                        error_text = response.text
 
-            # Check if request was successful
-            response.raise_for_status()
-
-            # Parse JSON response
-            if response.content:
-                return response.json()
-            return {}
-
-        except requests.exceptions.HTTPError as e:
-            error_data = None
-            error_text = ""
-            if response is not None:
-                try:
-                    error_data = response.json()
-                except (ValueError, AttributeError):
-                    error_text = response.text
-
-            status_code = response.status_code if response is not None else 500
-            
-            # Log detailed error information
-            self.logger.error(f"=== API ERROR ===")
-            self.logger.error(f"HTTP Error: {e}")
-            self.logger.error(f"Status Code: {status_code}")
-            self.logger.error(f"URL: {url}")
-            self.logger.error(f"Method: {method}")
-            if error_data:
-                self.logger.error(f"Error Response: {json.dumps(error_data, indent=2)}")
-            elif error_text:
-                self.logger.error(f"Error Text: {error_text}")
-            self.logger.error(f"=================")
-            
-            raise SyntheticsAPIError(
-                f"API request failed: {e}",
-                status_code=status_code,
-                response_data=error_data,
-            )
-        except requests.exceptions.RequestException as e:
-            self.logger.error(f"=== REQUEST ERROR ===")
-            self.logger.error(f"Request Exception: {e}")
-            self.logger.error(f"URL: {url}")
-            self.logger.error(f"Method: {method}")
-            self.logger.error(f"=====================")
-            raise SyntheticsAPIError(f"Request failed: {e}")
+                status_code = response.status_code if response is not None else 500
+                
+                # Handle 429 (Too Many Requests) with exponential backoff
+                if status_code == 429 and attempt < max_retries:
+                    # Extract retry-after header if available
+                    retry_after = None
+                    if response and 'retry-after' in response.headers:
+                        try:
+                            retry_after = int(response.headers['retry-after'])
+                        except ValueError:
+                            pass
+                    
+                    # Use exponential backoff if no retry-after header
+                    if retry_after is None:
+                        retry_after = min(2 ** attempt, 60)  # Max 60 seconds
+                    
+                    self.logger.warning(f"Rate limited (429), retrying in {retry_after}s (attempt {attempt + 1}/{max_retries})")
+                    time.sleep(retry_after)
+                    
+                    # Increase rate limiting for future requests
+                    self.min_request_interval = max(self.min_request_interval, 2.0)
+                    continue
+                
+                # Log detailed error information
+                self.logger.error(f"=== API ERROR ===")
+                self.logger.error(f"HTTP Error: {e}")
+                self.logger.error(f"Status Code: {status_code}")
+                self.logger.error(f"URL: {url}")
+                self.logger.error(f"Method: {method}")
+                if error_data:
+                    self.logger.error(f"Error Response: {json.dumps(error_data, indent=2)}")
+                elif error_text:
+                    self.logger.error(f"Error Text: {error_text}")
+                self.logger.error(f"=================")
+                
+                raise SyntheticsAPIError(
+                    f"API request failed: {e}",
+                    status_code=status_code,
+                    response_data=error_data,
+                )
+            except requests.exceptions.RequestException as e:
+                self.logger.error(f"=== REQUEST ERROR ===")
+                self.logger.error(f"Request Exception: {e}")
+                self.logger.error(f"URL: {url}")
+                self.logger.error(f"Method: {method}")
+                self.logger.error(f"=====================")
+                raise SyntheticsAPIError(f"Request failed: {e}")
+        
+        # If we get here, all retries failed
+        raise SyntheticsAPIError(f"All retry attempts failed for {method} {url}")
 
     # Test management methods
     def list_tests(self) -> ListTestsResponse:
@@ -340,8 +460,9 @@ class SyntheticsClient:
         # Ensure the test ID is set
         test.id = test_id
         request = UpdateTestRequest(test=test)
+        # Exclude read-only datetime fields that can't be serialized
         data = self._make_request(
-            "PUT", f"/tests/{test_id}", data=request.model_dump(exclude_none=True)
+            "PUT", f"/tests/{test_id}", data=request.model_dump(exclude_none=True, exclude={"test": {"cdate", "edate", "created_by", "last_updated_by"}})
         )
         return UpdateTestResponse.model_validate(data)
 

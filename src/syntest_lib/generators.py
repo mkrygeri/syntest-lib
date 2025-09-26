@@ -38,6 +38,105 @@ class TestGenerator:
         """Initialize the test generator."""
         pass
 
+    def _clean_dns_test_settings(self, test: Test) -> Test:
+        """
+        Clean up test settings to only include fields relevant for DNS tests.
+        
+        Args:
+            test: Test to clean up
+            
+        Returns:
+            Test with only DNS-relevant settings
+        """
+        if not test.settings or test.type != "dns_grid":
+            return test
+            
+        # Keep only DNS-relevant settings
+        cleaned_settings = test.settings.model_copy()
+        
+        # Remove throughput settings (not needed for DNS)
+        cleaned_settings.throughput = None
+        
+        # Remove schedule settings if they're default/empty
+        if (cleaned_settings.schedule and 
+            not cleaned_settings.schedule.enabled and 
+            cleaned_settings.schedule.start == 0 and 
+            cleaned_settings.schedule.end == 0):
+            cleaned_settings.schedule = None
+            
+        # Clean up ping settings - keep minimal for DNS tests
+        if cleaned_settings.ping:
+            # For DNS tests, we mainly need protocol and port
+            cleaned_settings.ping.count = 0  # Disable ping for DNS tests
+            cleaned_settings.ping.timeout = 0
+            cleaned_settings.ping.delay = 0
+            cleaned_settings.ping.dscp = 0
+            
+        # Clean up trace settings - disable for DNS tests  
+        if cleaned_settings.trace:
+            cleaned_settings.trace.count = 0  # Disable trace for DNS tests
+            cleaned_settings.trace.protocol = ""
+            cleaned_settings.trace.port = 0
+            cleaned_settings.trace.timeout = 0
+            cleaned_settings.trace.limit = 0
+            cleaned_settings.trace.delay = 0
+            cleaned_settings.trace.dscp = 0
+            cleaned_settings.trace.mtu = False
+            
+        test.settings = cleaned_settings
+        return test
+
+    def _sanitize_health_settings(self, health_settings: HealthSettings) -> HealthSettings:
+        """
+        Sanitize health settings to prevent API validation errors.
+        
+        Fixes overlapping thresholds by setting warning/critical pairs to None 
+        when they have conflicting values (like both being 0.0).
+        
+        Args:
+            health_settings: Health settings to sanitize
+            
+        Returns:
+            Sanitized health settings
+        """
+        health_dict = health_settings.model_dump(exclude_none=True)
+        
+        # Check for overlapping latency thresholds
+        latency_warning = health_dict.get("latencyWarning")
+        latency_critical = health_dict.get("latencyCritical")
+        if (latency_warning is not None and latency_critical is not None and 
+            latency_warning >= latency_critical):
+            # Remove conflicting values - let them be None (disabled)
+            health_dict.pop("latencyWarning", None)
+            health_dict.pop("latencyCritical", None)
+        
+        # Check for overlapping jitter thresholds  
+        jitter_warning = health_dict.get("jitterWarning")
+        jitter_critical = health_dict.get("jitterCritical")
+        if (jitter_warning is not None and jitter_critical is not None and 
+            jitter_warning >= jitter_critical):
+            # Remove conflicting values - let them be None (disabled)
+            health_dict.pop("jitterWarning", None)
+            health_dict.pop("jitterCritical", None)
+            
+        # Check for overlapping HTTP latency thresholds
+        http_latency_warning = health_dict.get("httpLatencyWarning")  
+        http_latency_critical = health_dict.get("httpLatencyCritical")
+        if (http_latency_warning is not None and http_latency_critical is not None and
+            http_latency_warning >= http_latency_critical):
+            health_dict.pop("httpLatencyWarning", None)
+            health_dict.pop("httpLatencyCritical", None)
+            
+        # Check for overlapping DNS latency thresholds
+        dns_latency_warning = health_dict.get("dnsLatencyWarning")
+        dns_latency_critical = health_dict.get("dnsLatencyCritical") 
+        if (dns_latency_warning is not None and dns_latency_critical is not None and
+            dns_latency_warning >= dns_latency_critical):
+            health_dict.pop("dnsLatencyWarning", None)
+            health_dict.pop("dnsLatencyCritical", None)
+        
+        return HealthSettings.model_validate(health_dict)
+
     def _create_default_health_settings(self, test_type: str = "ip") -> HealthSettings:
         """
         Create default health settings for tests based on test type.
@@ -74,6 +173,14 @@ class TestGenerator:
                 "httpValidCodes": [200, 201, 202, 204, 301, 302, 304],
             })
         
+        # Add activation settings - grace_period must be >= times
+        health_dict["activation"] = {
+            "gracePeriod": "3",    # >= times (3)
+            "timeUnit": "m",       # minutes  
+            "timeWindow": "5",     # 5 minutes
+            "times": "3"           # 3 occurrences
+        }
+        
         return HealthSettings.model_validate(health_dict)
 
     def _create_default_ping_settings(self) -> TestPingSettings:
@@ -87,7 +194,7 @@ class TestGenerator:
             count=3,
             protocol="icmp",
             timeout=5000,  # 5 seconds in milliseconds
-            delay=100.0,  # 100ms between probes
+            delay=100,  # 100ms between probes
         )
 
     def _create_default_trace_settings(self) -> TestTraceSettings:
@@ -102,7 +209,7 @@ class TestGenerator:
             protocol="icmp",
             timeout=5000,  # 5 seconds in milliseconds
             limit=30,  # Max 30 hops
-            delay=100.0,  # 100ms between probes
+            delay=100,  # 100ms between probes
         )
 
     def create_ip_test(

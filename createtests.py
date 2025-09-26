@@ -13,8 +13,9 @@ generator = TestGenerator()
 csv_manager = CSVTestManager(client, generator)
 
 # Process DNS grid tests from CSV
-results = csv_manager.load_tests_from_csv("dns_grid_tests.csv", "dns-project")
+results = csv_manager.load_tests_from_csv("/Users/mikek/Downloads/SyntheticResolvers.csv", "dns-project")
 
 print(f"Created {results['tests_created']} DNS grid tests")
 print(f"Updated {results['tests_updated']} existing tests")
+
 
