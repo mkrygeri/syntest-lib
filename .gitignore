@@ -157,3 +157,8 @@ cython_debug/
 #  be added to the global gitignore or merged into this project gitignore.  For a PyCharm
 #  project, it is recommended to store the initial idea directory in the root of the repository.
 .idea/
+
+# Credentials and sensitive files
+kentik_config.txt
+*.credentials
+.secrets
