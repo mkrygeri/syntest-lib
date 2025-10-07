@@ -235,7 +235,7 @@ class CSVTestManager:
         Get agent IDs for a test, supporting explicit agent names or site-based agents.
         
         Priority order:
-        1. agent_names column (comma-separated agent names) - looked up via API
+        1. agent_names or synth_names column (comma-separated agent names) - looked up via API
         2. Site-based agents (fallback)
         
         Args:
@@ -246,12 +246,23 @@ class CSVTestManager:
             List of agent IDs
         """
         # Check for explicit agent names first
+        # Support both 'agent_names' and 'synth_names' column names
         agent_names_str = test_data.get("agent_names", "").strip()
+        if not agent_names_str:
+            agent_names_str = test_data.get("synth_names", "").strip()
+            
         if agent_names_str:
             agent_names = [name.strip() for name in agent_names_str.split(",") if name.strip()]
             agent_ids = self._map_agent_names_to_ids(agent_names)
-            self.logger.debug(f"Using explicit agent names for {test_data['test_name']}: {agent_names} -> {agent_ids}")
-            return agent_ids
+            # De-duplicate agent IDs while preserving order
+            seen = set()
+            unique_agent_ids = []
+            for agent_id in agent_ids:
+                if agent_id not in seen:
+                    seen.add(agent_id)
+                    unique_agent_ids.append(agent_id)
+            self.logger.debug(f"Using explicit agent names for {test_data['test_name']}: {agent_names} -> {unique_agent_ids}")
+            return unique_agent_ids
         
         # Fallback to site-based agents
         site_agents = self._get_site_agents(site_name)
@@ -535,12 +546,40 @@ class CSVTestManager:
                 )
             elif test_type == "dns_grid":
                 servers = test_data.get("dns_servers", "8.8.8.8,1.1.1.1").split(",")
+                
+                # Parse optional ping settings
+                ping_settings = None
+                enable_ping_str = test_data.get("enable_ping") or ""
+                enable_ping = enable_ping_str.strip().lower() in ("true", "yes", "1")
+                if enable_ping:
+                    from .models import TestPingSettings
+                    ping_settings = TestPingSettings(
+                        count=int(test_data.get("ping_count", 3)),
+                        protocol=test_data.get("ping_protocol", "icmp"),
+                        timeout=int(test_data.get("ping_timeout", 3000)),
+                    )
+                
+                # Parse optional traceroute settings
+                trace_settings = None
+                enable_trace_str = test_data.get("enable_traceroute") or ""
+                enable_trace = enable_trace_str.strip().lower() in ("true", "yes", "1")
+                if enable_trace:
+                    from .models import TestTraceSettings
+                    trace_settings = TestTraceSettings(
+                        count=int(test_data.get("trace_count", 3)),
+                        protocol=test_data.get("trace_protocol", "icmp"),
+                        timeout=int(test_data.get("trace_timeout", 22500)),
+                        limit=int(test_data.get("trace_limit", 30)),
+                    )
+                
                 test = self.generator.create_dns_grid_test(
                     name=test_name,
                     target=target,
                     servers=[s.strip() for s in servers],
                     agent_ids=agents,
                     labels=labels,
+                    ping_settings=ping_settings,
+                    trace_settings=trace_settings,
                 )
             elif test_type == "page_load":
                 test = self.generator.create_page_load_test(
@@ -552,7 +591,12 @@ class CSVTestManager:
 
             # Create the test via API
             response = self.client.create_test(test)
-            return response.test if hasattr(response, "test") and response.test else test
+            result_test = response.test if hasattr(response, "test") and response.test else test
+            
+            # Add to cache
+            self._existing_tests.append(result_test)
+            
+            return result_test
 
         except Exception as e:
             self.logger.error(f"Error creating test {test_data['test_name']}: {e}")
@@ -621,7 +665,15 @@ class CSVTestManager:
                     self.logger.info(f"  {field}: {old} -> {new}")
 
             response = self.client.update_test(existing_test.id or "", updated_test)
-            return response.test if hasattr(response, "test") and response.test else updated_test
+            result_test = response.test if hasattr(response, "test") and response.test else updated_test
+            
+            # Update the cache with the latest test data
+            for i, test in enumerate(self._existing_tests):
+                if test.id == existing_test.id:
+                    self._existing_tests[i] = result_test
+                    break
+            
+            return result_test
 
         except Exception as e:
             self.logger.error(f"Error updating test {existing_test.name}: {e}")
@@ -650,6 +702,45 @@ class CSVTestManager:
                     self.logger.error(f"Error removing test {test.name}: {e}")
 
         return removed_count
+
+    def delete_all_managed_tests(self, management_tag: str) -> int:
+        """
+        Delete all tests that have the specified management tag.
+        
+        This is used for the --redeploy mode to clean slate before recreating tests.
+        
+        Args:
+            management_tag: The management tag to filter tests by
+            
+        Returns:
+            Number of tests deleted
+        """
+        # Load existing tests if not already loaded
+        if not self._existing_tests:
+            self._load_existing_resources()
+        
+        deleted_count = 0
+        
+        # Find all tests with the management tag
+        managed_tests = filter_tests_by_labels(self._existing_tests, [management_tag])
+        
+        self.logger.info(f"Found {len(managed_tests)} tests with management tag '{management_tag}'")
+        
+        for test in managed_tests:
+            try:
+                if test.id:  # Only delete if test has an ID
+                    self.client.delete_test(test.id)
+                    self.logger.info(f"Deleted test: {test.name}")
+                    deleted_count += 1
+                else:
+                    self.logger.warning(f"Cannot delete test {test.name}: no ID found")
+            except SyntheticsAPIError as e:
+                self.logger.error(f"Error deleting test {test.name}: {e}")
+        
+        # Clear the cache since we deleted tests
+        self._existing_tests = []
+        
+        return deleted_count
 
     def _compare_tests(self, existing: Test, updated: Test) -> Dict[str, tuple]:
         """
@@ -708,9 +799,17 @@ class CSVTestManager:
         # Get new agent IDs as set
         new_agents = set(new_agent_ids)
         
+        # Debug logging
+        self.logger.debug(f"Agent comparison for '{existing_test.name}':")
+        self.logger.debug(f"  Existing agents: {existing_agents}")
+        self.logger.debug(f"  New agents: {new_agents}")
+        
         # Compute additions and removals
         agents_to_add = new_agents - existing_agents
         agents_to_remove = existing_agents - new_agents
+        
+        self.logger.debug(f"  To add: {agents_to_add}")
+        self.logger.debug(f"  To remove: {agents_to_remove}")
         
         if agents_to_add:
             changes["agents_added"] = (set(), agents_to_add)

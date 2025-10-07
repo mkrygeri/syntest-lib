@@ -144,6 +144,50 @@ DNS Grid Test,dns_grid,example.com,Tokyo Branch,"grid-tests,monitoring",8.8.8.8;
 - `site_lat`, `site_lon`: Geographical coordinates
 - `site_address`, `site_city`, `site_country`, `site_postal_code`: Address info
 
+### Command Line Tool 🔧
+
+For quick CSV processing, use the included `createtests.py` script:
+
+```bash
+# Basic usage - create/update tests from CSV
+python createtests.py my_tests.csv
+
+# With custom management tag
+python createtests.py my_tests.csv my-project-tag
+
+# Redeploy mode - delete all existing tests and recreate from CSV
+python createtests.py my_tests.csv --redeploy
+
+# Redeploy with custom tag
+python createtests.py my_tests.csv my-project --redeploy
+```
+
+**Environment Variables Required:**
+```bash
+export KENTIK_EMAIL="your-email@company.com"
+export KENTIK_API_TOKEN="your-api-token"
+```
+
+**Modes:**
+- **Default**: Creates new tests, updates existing ones, removes tests not in CSV
+- **--redeploy**: Deletes ALL tests with the management tag first, then creates fresh from CSV
+  - ⚠️ **Use with caution**: This completely removes and recreates all managed tests
+  - 💡 **Use case**: Clean slate deployment, major configuration changes, troubleshooting
+
+**Output:**
+```
+Processing CSV file: my_tests.csv
+Management tag: csv-managed
+--------------------------------------------------
+✅ Processing complete!
+📝 Created: 5 tests
+🔄 Updated: 3 tests
+⏭️  Skipped: 12 tests (unchanged)
+🗑️  Removed: 2 tests
+🏷️  Created: 4 labels
+🏢 Created: 1 sites
+```
+
 ## Advanced Examples
 
 ### Multi-Site Test Deployment

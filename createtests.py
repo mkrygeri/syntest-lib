@@ -4,25 +4,40 @@
 Quick CSV test creation script.
 
 Usage:
-    python createtests.py path/to/your/tests.csv [management_tag]
+    python createtests.py path/to/your/tests.csv [management_tag] [--redeploy]
 
 Examples:
     python createtests.py tests.csv
     python createtests.py my_tests.csv my-project
+    python createtests.py tests.csv --redeploy  # Delete all tests and recreate
 """
 
 import sys
 import os
+import logging
 from syntest_lib import SyntheticsClient, TestGenerator, CSVTestManager
 
 def main():
+    # Enable INFO logging to see what's happening
+    logging.basicConfig(level=logging.INFO, format='%(message)s')
+    
     if len(sys.argv) < 2:
-        print("Usage: python createtests.py <csv_file> [management_tag]")
+        print("Usage: python createtests.py <csv_file> [management_tag] [--redeploy]")
         print("Example: python createtests.py tests.csv my-project")
+        print("         python createtests.py tests.csv --redeploy")
         sys.exit(1)
     
+    # Parse arguments
     csv_file = sys.argv[1]
-    management_tag = sys.argv[2] if len(sys.argv) > 2 else "csv-managed"
+    redeploy = "--redeploy" in sys.argv
+    
+    # Get management tag (skip --redeploy if present)
+    management_tag = "csv-managed"
+    if len(sys.argv) > 2:
+        for arg in sys.argv[2:]:
+            if arg != "--redeploy":
+                management_tag = arg
+                break
     
     # Verify file exists
     if not os.path.exists(csv_file):
@@ -46,9 +61,18 @@ def main():
     
     print(f"Processing CSV file: {csv_file}")
     print(f"Management tag: {management_tag}")
+    if redeploy:
+        print("🔄 REDEPLOY MODE: Will delete all existing tests with this tag and recreate from CSV")
     print("-" * 50)
     
     try:
+        # If redeploy mode, delete all tests with management tag first
+        if redeploy:
+            print("⚠️  Deleting all existing tests with management tag...")
+            deleted_count = csv_manager.delete_all_managed_tests(management_tag)
+            print(f"🗑️  Deleted {deleted_count} existing tests")
+            print()
+        
         # Process the CSV file
         results = csv_manager.load_tests_from_csv(csv_file, management_tag)
         

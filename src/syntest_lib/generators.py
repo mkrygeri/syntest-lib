@@ -64,24 +64,22 @@ class TestGenerator:
             cleaned_settings.schedule.end == 0):
             cleaned_settings.schedule = None
             
-        # Clean up ping settings - keep minimal for DNS tests
+        # Remove ping settings if not configured (or set to default/empty)
         if cleaned_settings.ping:
-            # For DNS tests, we mainly need protocol and port
-            cleaned_settings.ping.count = 0  # Disable ping for DNS tests
-            cleaned_settings.ping.timeout = 0
-            cleaned_settings.ping.delay = 0
-            cleaned_settings.ping.dscp = 0
+            # If ping has no meaningful settings, remove it entirely
+            if (not cleaned_settings.ping.count or cleaned_settings.ping.count == 0):
+                cleaned_settings.ping = None
             
-        # Clean up trace settings - disable for DNS tests  
+        # Remove trace settings if not configured (or set to default/empty)
         if cleaned_settings.trace:
-            cleaned_settings.trace.count = 0  # Disable trace for DNS tests
-            cleaned_settings.trace.protocol = ""
-            cleaned_settings.trace.port = 0
-            cleaned_settings.trace.timeout = 0
-            cleaned_settings.trace.limit = 0
-            cleaned_settings.trace.delay = 0
-            cleaned_settings.trace.dscp = 0
-            cleaned_settings.trace.mtu = False
+            # If trace has no meaningful settings, remove it entirely
+            if (not cleaned_settings.trace.count or cleaned_settings.trace.count == 0):
+                cleaned_settings.trace = None
+        
+        # Ensure tasks field exists and is valid for DNS grid
+        # Must have at least 'dns', and can include 'ping' and/or 'traceroute'
+        if not cleaned_settings.tasks:
+            cleaned_settings.tasks = ["dns"]
             
         test.settings = cleaned_settings
         return test
@@ -773,6 +771,9 @@ class TestGenerator:
         period: int = 60,
         family: IPFamily = IPFamily.DUAL,
         health_settings: Optional[HealthSettings] = None,
+        ping_settings: Optional[TestPingSettings] = None,
+        trace_settings: Optional[TestTraceSettings] = None,
+        tasks: Optional[List[str]] = None,
         notification_channels: Optional[List[str]] = None,
         labels: Optional[List[str]] = None,
         notes: Optional[str] = None,
@@ -791,6 +792,9 @@ class TestGenerator:
             period: Test period in seconds (default: 60)
             family: IP family (default: DUAL)
             health_settings: Custom health settings
+            ping_settings: Ping task settings (enables ping if provided)
+            trace_settings: Traceroute task settings (enables traceroute if provided)
+            tasks: Custom task list (default: ["dns"], add "ping" and/or "trace" as needed)
             notification_channels: List of notification channel IDs
             labels: List of labels for the test
             notes: Notes or comments for the test
@@ -804,12 +808,23 @@ class TestGenerator:
             recordType=record_type,  # Use alias instead of field name
             port=port,
         )
+        
+        # Build task list for DNS grid - always start with 'dns'
+        if tasks is None:
+            tasks = ["dns"]
+            # Add ping and traceroute if settings are provided
+            if ping_settings:
+                tasks.append("ping")
+            if trace_settings:
+                tasks.append("traceroute")  # Note: API uses "traceroute" not "trace"
 
         settings = TestSettings(
             dnsGrid=dns_test,  # Use alias instead of dns_grid
             agentIds=agent_ids,  # Use alias instead of agent_ids
-            tasks=["dns"],
+            tasks=tasks,
             healthSettings=health_settings or self._create_default_health_settings("dns_grid"),  # Use alias
+            ping=ping_settings,
+            trace=trace_settings,
             period=period,
             family=family,
             notificationChannels=notification_channels or [],  # Use alias

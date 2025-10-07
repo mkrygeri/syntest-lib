@@ -16,10 +16,10 @@ import requests
 class DateTimeJSONEncoder(json.JSONEncoder):
     """Custom JSON encoder that handles datetime objects."""
     
-    def default(self, obj):
-        if isinstance(obj, datetime):
-            return obj.isoformat()
-        return super().default(obj)
+    def default(self, o):
+        if isinstance(o, datetime):
+            return o.isoformat()
+        return super().default(o)
 
 from .label_models import (
     CreateLabelRequest,

@@ -69,6 +69,40 @@ DNS Grid,dns_grid,test.com,"8.8.8.8,1.1.1.1,9.9.9.9"
 Custom DNS,dns,internal.company.com,"192.168.1.1,192.168.1.2"
 ```
 
+## 🔍 DNS Grid with Ping and Traceroute
+
+DNS Grid tests can include ping and traceroute tasks to the DNS servers:
+
+```csv
+test_name,test_type,target,dns_servers,enable_ping,enable_traceroute
+DNS Only,dns_grid,example.com,"8.8.8.8,1.1.1.1",false,false
+DNS + Ping,dns_grid,example.com,"8.8.8.8,1.1.1.1",true,false
+DNS + Trace,dns_grid,example.com,"8.8.8.8,1.1.1.1",false,true
+DNS + Both,dns_grid,example.com,"8.8.8.8,1.1.1.1",true,true
+```
+
+### Advanced Ping/Trace Settings
+
+Customize ping and traceroute behavior:
+
+```csv
+test_name,test_type,target,dns_servers,enable_ping,ping_count,ping_protocol,ping_timeout,enable_traceroute,trace_count,trace_protocol,trace_timeout,trace_limit
+Full Config,dns_grid,example.com,"8.8.8.8,1.1.1.1",true,5,icmp,5000,true,3,udp,30000,25
+```
+
+**Ping Settings:**
+- `enable_ping`: Enable ping task (true/false, yes/no, 1/0)
+- `ping_count`: Number of ping packets (default: 3)
+- `ping_protocol`: Protocol to use - `icmp` or `tcp` (default: icmp)
+- `ping_timeout`: Timeout in milliseconds (default: 3000)
+
+**Traceroute Settings:**
+- `enable_traceroute`: Enable traceroute task (true/false, yes/no, 1/0)  
+- `trace_count`: Number of probe packets per hop (default: 3)
+- `trace_protocol`: Protocol to use - `icmp`, `tcp`, or `udp` (default: icmp)
+- `trace_timeout`: Timeout in milliseconds (default: 22500)
+- `trace_limit`: Maximum number of hops (default: 30)
+
 ## 🤖 Agent Assignment
 
 Three ways to assign agents:
@@ -87,6 +121,8 @@ Named Agent,url,https://example.com,Agent-NYC-1
 Multi Agent,url,https://example.com,"Agent-NYC-1,Agent-NYC-2"
 ```
 Looks up agent IDs by name via API.
+
+**Note:** The column can be named either `agent_names` or `synth_names` - both are supported.
 
 ### 3. Mixed Approach
 ```csv
@@ -123,6 +159,8 @@ Site types:
 
 ## 📊 Usage Example
 
+### Python API
+
 ```python
 from syntest_lib import SyntheticsClient, TestGenerator, CSVTestManager
 
@@ -141,6 +179,46 @@ print(f"Removed: {stats['tests_removed']} tests")
 print(f"Labels created: {stats['labels_created']}")
 print(f"Sites created: {stats['sites_created']}")
 ```
+
+### Command Line Tool
+
+Use the `createtests.py` script for quick CSV processing:
+
+```bash
+# Set environment variables
+export KENTIK_EMAIL="your-email@company.com"
+export KENTIK_API_TOKEN="your-api-token"
+
+# Basic usage - incremental updates
+python createtests.py tests.csv
+
+# With custom management tag
+python createtests.py tests.csv my-project
+
+# Redeploy mode - delete all existing tests first
+python createtests.py tests.csv --redeploy
+
+# Redeploy with custom tag
+python createtests.py tests.csv my-project --redeploy
+```
+
+**Modes:**
+
+1. **Default (Incremental)**
+   - Creates new tests from CSV
+   - Updates existing tests when CSV data changes
+   - Removes tests not in CSV (only those with management tag)
+   - Safest option for ongoing management
+
+2. **Redeploy Mode (--redeploy)**
+   - Deletes ALL tests with the management tag first
+   - Then creates fresh tests from CSV
+   - ⚠️ **Use with caution**: Complete teardown and rebuild
+   - 💡 **Use cases**: 
+     - Clean slate deployment
+     - Major configuration changes
+     - Migrating to new management tag
+     - Troubleshooting corrupted test state
 
 ## 🛡️ Safety Features
 
