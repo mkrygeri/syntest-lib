@@ -649,6 +649,8 @@ class TestResults(BaseModel):
 
 class GetResultsForTestsRequest(BaseModel):
     """Request to get test results."""
+    
+    model_config = {"populate_by_name": True}
 
     ids: List[str] = Field(description="List of test IDs")
     start_time: datetime = Field(alias="startTime", description="Start timestamp")

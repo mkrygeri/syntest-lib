@@ -36,6 +36,26 @@ A comprehensive Python library for managing synthetic tests, labels, and sites u
 - Test organization metrics and standardization suggestions
 - Comprehensive filtering and grouping utilities
 
+### 📊 **Test Results Enrichment** 🆕
+- **Fetch test results from Kentik Synthetics API**
+- **Enrich results with agent, test, and site metadata**
+- **Export in InfluxDB line protocol format with full metrics**
+- **Send directly to Kentik NMS** ⭐ NEW
+- **Complete metric extraction:**
+  - Latency with rolling averages and standard deviation
+  - Packet loss and jitter statistics (ping tests)
+  - HTTP response codes, sizes, and detailed timing
+  - Health status for all metrics
+- **Enhanced tags from test configuration:** ⭐ NEW
+  - Filter by target (domain, URL, IP)
+  - Group by DNS server or record type
+  - Analyze by HTTP method
+  - Tag by test labels and period
+- **Support for DNS, Ping, and HTTP test types**
+- **Handle DNS Grid tests with multiple tasks per agent**
+- **Time-series data for monitoring and alerting**
+- **Automated scheduling with cron or systemd**
+
 ## Quick Start
 
 ### Installation
@@ -187,6 +207,103 @@ Management tag: csv-managed
 🏷️  Created: 4 labels
 🏢 Created: 1 sites
 ```
+
+### Test Results Enrichment 📊
+
+Fetch test results and enrich with metadata for export to InfluxDB or other time-series databases:
+
+```bash
+# Get last hour of results
+python fetch_results.py --minutes 60
+
+# Get last 24 hours, save to file
+python fetch_results.py --hours 24 --output /tmp/results.influx
+
+# Get specific time range
+python fetch_results.py --start "2025-01-01 00:00:00" --end "2025-01-02 00:00:00"
+
+# Filter by specific tests or agents
+python fetch_results.py --minutes 60 --tests "test-id-1,test-id-2"
+python fetch_results.py --minutes 60 --agents "agent-id-1,agent-id-2"
+
+# Send directly to Kentik NMS
+python fetch_results.py --minutes 60 --send-to-kentik
+```
+
+**Python API Usage:**
+
+```python
+from datetime import datetime, timedelta, timezone
+from syntest_lib import SyntheticsClient
+from syntest_lib.results_enricher import TestResultsEnricher
+
+# Initialize
+client = SyntheticsClient(email="your-email@company.com", api_token="your-token")
+enricher = TestResultsEnricher(client)
+
+# Load metadata
+enricher.refresh_metadata()
+
+# Fetch results for the last hour
+now = datetime.now(timezone.utc)
+start_time = now - timedelta(hours=1)
+end_time = now
+
+# Get all test IDs
+test_ids = list(enricher._tests_cache.keys())
+
+# Fetch and enrich results
+enriched_records = enricher.get_all_results(
+    test_ids=test_ids,
+    start_time=start_time,
+    end_time=end_time
+)
+
+# Convert to InfluxDB line protocol
+lines = enricher.to_influx_line_protocol(enriched_records)
+
+# Option 1: Send directly to Kentik NMS
+enricher.send_to_kentik(
+    lines=lines,
+    email="your-email@company.com",
+    api_token="your-token"
+)
+
+# Option 2: Write to file for InfluxDB import
+with open('results.influx', 'w') as f:
+    for line in lines:
+        f.write(line + '\n')
+```
+
+**InfluxDB Line Protocol Format:**
+
+```
+/kentik/synthetics/dns,test_id=123,test_name=DNS\ Test,agent_name=NYC-1 latency_ms=45.2,latency_health="healthy" 1609459200000000000
+```
+
+**Send to Kentik NMS:**
+
+```bash
+# Send metrics directly to Kentik NMS
+python fetch_results.py --minutes 60 --send-to-kentik
+
+# Schedule with cron (every 5 minutes)
+*/5 * * * * cd /path/to/syntest-lib && python fetch_results.py --minutes 5 --send-to-kentik
+```
+
+**Import to InfluxDB:**
+
+```bash
+# Using influx CLI
+influx write --bucket syntest --file results.influx
+
+# Using HTTP API
+curl -X POST "http://localhost:8086/api/v2/write?org=your-org&bucket=your-bucket" \
+  --header "Authorization: Token your-token" \
+  --data-binary @results.influx
+```
+
+See [docs/results_enrichment.md](docs/results_enrichment.md) for full documentation and [docs/METRICS_REFERENCE.md](docs/METRICS_REFERENCE.md) for a complete reference of all available metrics.
 
 ## Advanced Examples
 
@@ -384,6 +501,7 @@ The `examples/` directory contains comprehensive examples:
 
 - `labels_and_sites_example.py`: Complete label and site management
 - `csv_management_example.py`: CSV-based test management demo
+- `enrichment_example.py`: Test results enrichment demo 🆕
 - `example_tests.csv`: Basic CSV format example
 - `enhanced_example_tests.csv`: Advanced CSV scenarios
 

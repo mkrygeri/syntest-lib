@@ -314,10 +314,15 @@ class SyntheticsClient:
 
             response = None
             try:
+                # Serialize datetime objects if present in data
+                json_data = None
+                if data is not None:
+                    json_data = json.loads(json.dumps(data, cls=DateTimeJSONEncoder))
+                
                 response = self.session.request(
                     method=method,
                     url=url,
-                    json=data,
+                    json=json_data,
                     params=params,
                     timeout=self.timeout,
                 )
@@ -578,7 +583,7 @@ class SyntheticsClient:
             targets=targets,
             aggregate=aggregate,
         )
-        data = self._make_request("POST", "/results", data=request.model_dump(exclude_none=True))
+        data = self._make_request("POST", "/results", data=request.model_dump(exclude_none=True, by_alias=True))
         return GetResultsForTestsResponse.model_validate(data)
 
     def get_trace_for_test(
