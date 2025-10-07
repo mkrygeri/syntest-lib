@@ -55,7 +55,8 @@ def main():
         # Print results
         print("✅ Processing complete!")
         print(f"📝 Created: {results['tests_created']} tests")
-        print(f"🔄 Updated: {results['tests_updated']} tests")  
+        print(f"🔄 Updated: {results['tests_updated']} tests")
+        print(f"⏭️  Skipped: {results.get('tests_skipped', 0)} tests (unchanged)")
         print(f"🗑️  Removed: {results['tests_removed']} tests")
         print(f"🏷️  Created: {results['labels_created']} labels")
         print(f"🏢 Created: {results['sites_created']} sites")

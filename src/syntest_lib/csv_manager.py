@@ -69,6 +69,7 @@ class CSVTestManager:
         stats = {
             "tests_created": 0,
             "tests_updated": 0,
+            "tests_skipped": 0,
             "tests_removed": 0,
             "labels_created": 0,
             "sites_created": 0,
@@ -87,6 +88,7 @@ class CSVTestManager:
                 result = self._process_csv_row(test_data, management_tag)
                 stats["tests_created"] += result.get("created", 0)
                 stats["tests_updated"] += result.get("updated", 0)
+                stats["tests_skipped"] += result.get("skipped", 0)
                 stats["labels_created"] += result.get("labels_created", 0)
                 stats["sites_created"] += result.get("sites_created", 0)
 
@@ -175,6 +177,7 @@ class CSVTestManager:
         result: Dict[str, Any] = {
             "created": 0,
             "updated": 0,
+            "skipped": 0,
             "labels_created": 0,
             "sites_created": 0,
         }
@@ -211,8 +214,13 @@ class CSVTestManager:
             # Update existing test
             updated_test = self._update_test(existing_test, test_data, labels, agents)
             if updated_test:
-                result["updated"] = 1
-                self.logger.info(f"Updated test: {test_name}")
+                # Check if test was actually updated or skipped
+                if updated_test == existing_test:
+                    result["skipped"] = 1
+                    self.logger.debug(f"Skipped test (unchanged): {test_name}")
+                else:
+                    result["updated"] = 1
+                    self.logger.info(f"Updated test: {test_name}")
         else:
             # Create new test
             new_test = self._create_test(test_data, labels, agents)
@@ -553,30 +561,15 @@ class CSVTestManager:
     def _update_test(
         self, existing_test: Test, test_data: Dict[str, str], labels: List[str], agents: List[str]
     ) -> Optional[Test]:
-        """Update an existing test with new data."""
+        """Update an existing test with new data, skipping if unchanged."""
         try:
-            # Check if update is needed by comparing key fields
-            needs_update = False
-
-            # Compare labels
-            existing_labels = set(existing_test.labels or [])
-            new_labels = set(labels)
-            if existing_labels != new_labels:
-                needs_update = True
-
-            # Compare targets (simplified comparison)
-            if existing_test.settings and hasattr(existing_test.settings, "hostname"):
-                existing_target = getattr(existing_test.settings, "hostname", "")
-                if existing_target != test_data["target"]:
-                    needs_update = True
-
-            if not needs_update:
-                self.logger.debug(f"Test {existing_test.name} is up to date")
-                return existing_test
-
-            # Update test
+            # Build the updated test configuration
             updated_test = existing_test.model_copy()
             updated_test.labels = labels
+            
+            # Update agents in settings
+            if updated_test.settings:
+                updated_test.settings.agent_ids = agents
             
             # Clean up test settings for DNS tests (remove unnecessary fields)
             updated_test = self.generator._clean_dns_test_settings(updated_test)
@@ -603,6 +596,29 @@ class CSVTestManager:
                         updated_test.settings.health_settings.activation.time_unit = "m"
                     if not updated_test.settings.health_settings.activation.time_window:
                         updated_test.settings.health_settings.activation.time_window = "5"
+
+            # Compare existing and updated test configurations
+            changes = self._compare_tests(existing_test, updated_test)
+            
+            # Handle agent updates (add new, remove old)
+            agent_changes = self._compute_agent_changes(existing_test, agents)
+            if agent_changes:
+                changes.update(agent_changes)
+            
+            # Skip update if nothing changed
+            if not changes:
+                self.logger.info(f"Skipping update for test '{existing_test.name}' (unchanged)")
+                return existing_test
+            
+            # Log what changed
+            self.logger.info(f"Updating test '{existing_test.name}':")
+            for field, (old, new) in changes.items():
+                if field == "agents_added":
+                    self.logger.info(f"  Adding agents: {new}")
+                elif field == "agents_removed":
+                    self.logger.info(f"  Removing agents: {old}")
+                else:
+                    self.logger.info(f"  {field}: {old} -> {new}")
 
             response = self.client.update_test(existing_test.id or "", updated_test)
             return response.test if hasattr(response, "test") and response.test else updated_test
@@ -634,6 +650,75 @@ class CSVTestManager:
                     self.logger.error(f"Error removing test {test.name}: {e}")
 
         return removed_count
+
+    def _compare_tests(self, existing: Test, updated: Test) -> Dict[str, tuple]:
+        """
+        Compare two test configurations and return differences.
+        
+        Returns:
+            Dictionary of changed fields with (old_value, new_value) tuples
+        """
+        changes = {}
+        
+        # Compare test name
+        if existing.name != updated.name:
+            changes["name"] = (existing.name, updated.name)
+        
+        # Compare test type
+        if existing.type != updated.type:
+            changes["type"] = (existing.type, updated.type)
+        
+        # Compare labels (as sets for order-independent comparison)
+        existing_labels = set(existing.labels or [])
+        updated_labels = set(updated.labels or [])
+        if existing_labels != updated_labels:
+            changes["labels"] = (existing_labels, updated_labels)
+        
+        # Compare settings (if both exist)
+        if existing.settings and updated.settings:
+            # Compare hostname/target
+            existing_hostname = getattr(existing.settings, "hostname", None)
+            updated_hostname = getattr(updated.settings, "hostname", None)
+            
+            # Handle HostnameTest object vs string
+            if existing_hostname and hasattr(existing_hostname, "target"):
+                existing_hostname = existing_hostname.target
+            if updated_hostname and hasattr(updated_hostname, "target"):
+                updated_hostname = updated_hostname.target
+                
+            if existing_hostname != updated_hostname:
+                changes["target"] = (existing_hostname, updated_hostname)
+        
+        return changes
+
+    def _compute_agent_changes(self, existing_test: Test, new_agent_ids: List[str]) -> Dict[str, tuple]:
+        """
+        Compute which agents need to be added or removed.
+        
+        Returns:
+            Dictionary with 'agents_added' and/or 'agents_removed' keys
+        """
+        changes = {}
+        
+        # Get existing agent IDs from test settings
+        existing_agents = set()
+        if existing_test.settings and existing_test.settings.agent_ids:
+            existing_agents = set(existing_test.settings.agent_ids)
+        
+        # Get new agent IDs as set
+        new_agents = set(new_agent_ids)
+        
+        # Compute additions and removals
+        agents_to_add = new_agents - existing_agents
+        agents_to_remove = existing_agents - new_agents
+        
+        if agents_to_add:
+            changes["agents_added"] = (set(), agents_to_add)
+        
+        if agents_to_remove:
+            changes["agents_removed"] = (agents_to_remove, set())
+        
+        return changes
 
 
 def create_example_csv(output_path: str = "example_tests.csv"):

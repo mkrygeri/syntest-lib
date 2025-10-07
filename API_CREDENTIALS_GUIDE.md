@@ -14,7 +14,7 @@ echo 'export KENTIK_EMAIL=your-email@company.com' >> ~/.zshrc
 echo 'export KENTIK_API_TOKEN=your-api-token-here' >> ~/.zshrc
 source ~/.zshrc
 ```
-
+python
 ```python
 import os
 from syntest_lib import SyntheticsClient, TestGenerator, CSVTestManager
