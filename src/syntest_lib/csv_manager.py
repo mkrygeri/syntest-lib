@@ -537,15 +537,20 @@ class CSVTestManager:
                 )
             elif test_type == "dns":
                 servers = test_data.get("dns_servers", "8.8.8.8,1.1.1.1").split(",")
+                # Get port from CSV or default to 53
+                port = int(test_data.get("dns_port", 53))
                 test = self.generator.create_dns_test(
                     name=test_name,
                     target=target,
                     servers=[s.strip() for s in servers],
                     agent_ids=agents,
                     labels=labels,
+                    port=port,
                 )
             elif test_type == "dns_grid":
                 servers = test_data.get("dns_servers", "8.8.8.8,1.1.1.1").split(",")
+                # Get port from CSV or default to 53
+                port = int(test_data.get("dns_port", 53))
                 
                 # Parse optional ping settings
                 ping_settings = None
@@ -578,6 +583,7 @@ class CSVTestManager:
                     servers=[s.strip() for s in servers],
                     agent_ids=agents,
                     labels=labels,
+                    port=port,
                     ping_settings=ping_settings,
                     trace_settings=trace_settings,
                 )

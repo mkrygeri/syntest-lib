@@ -1,0 +1,4 @@
+test_name,test_type,target,dns_servers
+DNS Test - Default Port,dns,google.com,8.8.8.8
+DNS Test - Explicit Port 53,dns,cloudflare.com,1.1.1.1
+DNS Grid - Default Port,dns_grid,example.com,"8.8.8.8,1.1.1.1"

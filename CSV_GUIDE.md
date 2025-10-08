@@ -17,6 +17,7 @@ Google Search,url,https://google.com
 - `site_name`: "Default Site" (auto-created)
 - `labels`: "csv-managed" (for cleanup tracking)
 - `dns_servers`: "8.8.8.8,1.1.1.1" (for DNS tests)
+- `dns_port`: 53 (for DNS tests)
 - `agent_names`: Empty (uses site-based agents)
 
 ## 📋 Complete CSV Format
@@ -59,15 +60,18 @@ Label format: `name|color|description` where color and description are optional.
 
 ## 🌐 DNS Server Configuration
 
-For DNS and DNS Grid tests, specify servers:
+For DNS and DNS Grid tests, specify servers and optionally the port:
 
 ```csv
-test_name,test_type,target,dns_servers
-Basic DNS,dns,google.com,8.8.8.8
-Multiple DNS,dns,example.com,"8.8.8.8,1.1.1.1"
-DNS Grid,dns_grid,test.com,"8.8.8.8,1.1.1.1,9.9.9.9"
-Custom DNS,dns,internal.company.com,"192.168.1.1,192.168.1.2"
+test_name,test_type,target,dns_servers,dns_port
+Basic DNS,dns,google.com,8.8.8.8,53
+Multiple DNS,dns,example.com,"8.8.8.8,1.1.1.1",53
+DNS Grid,dns_grid,test.com,"8.8.8.8,1.1.1.1,9.9.9.9",53
+Custom DNS,dns,internal.company.com,"192.168.1.1,192.168.1.2",53
+Custom Port,dns,internal.company.com,192.168.1.1,5353
 ```
+
+**Note:** If `dns_port` is not specified, it defaults to **53** (standard DNS port).
 
 ## 🔍 DNS Grid with Ping and Traceroute
 
