@@ -374,16 +374,17 @@ class TestCSVManager(unittest.TestCase):
     
     def test_site_agent_mapping(self):
         """Test getting agents for sites."""
-        # Test known sites
+        # With the private agents only policy, mock agents are no longer returned
+        # If no private agents exist, empty list is returned
         agents = self.csv_manager._get_site_agents("New York DC")
-        self.assertEqual(agents, ['agent-nyc-1', 'agent-nyc-2'])
+        self.assertEqual(agents, [])
         
         agents = self.csv_manager._get_site_agents("London Office")
-        self.assertEqual(agents, ['agent-lon-1'])
+        self.assertEqual(agents, [])
         
-        # Test unknown site
+        # Test unknown site also returns empty list
         agents = self.csv_manager._get_site_agents("Unknown Site")
-        self.assertEqual(agents, ['agent-default'])
+        self.assertEqual(agents, [])
     
     def test_find_existing_test(self):
         """Test finding existing tests by name."""

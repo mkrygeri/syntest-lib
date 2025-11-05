@@ -76,10 +76,9 @@ class CSVTestManager:
             "errors": [],
         }
 
-        # Ensure management tag exists
-        management_label = self._ensure_label_exists(management_tag, "#00FF00", "CSV managed tests")
-        if management_label:
-            stats["labels_created"] += 1
+        # Pre-create all labels from CSV to avoid creation failures during test processing
+        labels_created = self._precreate_all_labels(csv_tests, management_tag)
+        stats["labels_created"] += labels_created
 
         # Process each CSV row
         processed_test_names = set()
@@ -189,13 +188,16 @@ class CSVTestManager:
         result["test_name"] = test_name
 
         # Parse labels
-        labels = self._parse_labels(test_data.get("labels", ""))
-        labels.append(management_tag)  # Add management tag
+        label_names = self._parse_labels(test_data.get("labels", ""))
+        label_names.append(management_tag)  # Add management tag
 
-        # Ensure all labels exist
-        for label in labels:
+        # Ensure all labels exist (with case-insensitive matching)
+        for label in label_names:
             if self._ensure_label_exists(label):
                 result["labels_created"] += 1
+        
+        # Normalize label names to match existing labels (case-insensitive)
+        normalized_labels = self._normalize_label_names(label_names)
 
         # Ensure site exists and get agents
         agents = []
@@ -206,13 +208,19 @@ class CSVTestManager:
 
             # Get agents - check for explicit agent specification first
             agents = self._get_agents_for_test(test_data, site_name)
+            
+            # Skip test creation if no agents available
+            if not agents:
+                self.logger.warning(f"Skipping test '{test_name}' - no private agents available for site '{site_name}'")
+                result["skipped"] = 1
+                return result
 
         # Create or update test
         existing_test = self._find_existing_test(test_name)
 
         if existing_test:
             # Update existing test
-            updated_test = self._update_test(existing_test, test_data, labels, agents)
+            updated_test = self._update_test(existing_test, test_data, normalized_labels, agents)
             if updated_test:
                 # Check if test was actually updated or skipped
                 if updated_test == existing_test:
@@ -223,7 +231,7 @@ class CSVTestManager:
                     self.logger.info(f"Updated test: {test_name}")
         else:
             # Create new test
-            new_test = self._create_test(test_data, labels, agents)
+            new_test = self._create_test(test_data, normalized_labels, agents)
             if new_test:
                 result["created"] = 1
                 self.logger.info(f"Created test: {test_name}")
@@ -276,14 +284,99 @@ class CSVTestManager:
 
         return [label.strip() for label in labels_str.split(",") if label.strip()]
 
+    def _normalize_label_names(self, label_names: List[str]) -> List[str]:
+        """
+        Normalize label names to match existing labels (case-insensitive).
+        
+        This ensures that labels in the CSV match the exact casing of existing labels in Kentik.
+        For example, if CSV has "dns" but Kentik has "DNS", this will return "DNS".
+        
+        Args:
+            label_names: List of label names from CSV
+            
+        Returns:
+            List of normalized label names matching existing labels
+        """
+        # Create case-insensitive mapping
+        labels_lower_map = {name.lower(): name for name in self._existing_labels.keys()}
+        
+        normalized = []
+        for name in label_names:
+            if not name:
+                continue
+            
+            name_lower = name.lower()
+            if name_lower in labels_lower_map:
+                # Use the exact casing from existing labels
+                normalized_name = labels_lower_map[name_lower]
+                self.logger.debug(f"Normalized label '{name}' to '{normalized_name}'")
+                normalized.append(normalized_name)
+            else:
+                # Label doesn't exist yet, use original casing
+                self.logger.debug(f"Label '{name}' not found in cache, using original casing")
+                normalized.append(name)
+        
+        return normalized
+
+    def _precreate_all_labels(self, csv_tests: List[Dict[str, str]], management_tag: str) -> int:
+        """
+        Pre-create all unique labels from CSV before processing tests.
+        This prevents label creation failures during test creation.
+        
+        Args:
+            csv_tests: List of test configurations from CSV
+            management_tag: Management tag label to also create
+            
+        Returns:
+            Number of labels created
+        """
+        # Collect all unique labels from CSV
+        all_labels = set()
+        all_labels.add(management_tag)  # Add management tag
+        
+        for test_data in csv_tests:
+            labels_str = test_data.get("labels", "")
+            labels = self._parse_labels(labels_str)
+            all_labels.update(labels)
+        
+        self.logger.info(f"Pre-creating {len(all_labels)} unique labels...")
+        
+        # Create all labels
+        created_count = 0
+        for label_name in sorted(all_labels):  # Sort for consistent ordering
+            if self._ensure_label_exists(label_name):
+                created_count += 1
+        
+        # Reload labels cache to ensure all created labels are available
+        try:
+            label_response = self.client.list_labels()
+            labels_list = (
+                label_response.labels
+                if hasattr(label_response, "labels") and label_response.labels
+                else []
+            )
+            self._existing_labels = {label.name: label for label in labels_list}
+            self.logger.info(f"Reloaded {len(self._existing_labels)} labels from API")
+        except Exception as e:
+            self.logger.warning(f"Could not reload labels: {e}")
+        
+        return created_count
+
     def _ensure_label_exists(
         self, label_name: str, color: str = "#0066CC", description: str = ""
     ) -> bool:
-        """Ensure a label exists, creating it if necessary."""
+        """Ensure a label exists, creating it if necessary (case-insensitive check)."""
         if not label_name:
             return False
 
-        if label_name in self._existing_labels:
+        # Check if label already exists (case-insensitive)
+        labels_lower_map = {name.lower(): label for name, label in self._existing_labels.items()}
+        label_name_lower = label_name.lower()
+        
+        if label_name_lower in labels_lower_map:
+            # Label already exists (possibly with different casing)
+            existing_label = labels_lower_map[label_name_lower]
+            self.logger.debug(f"Label '{label_name}' already exists as '{existing_label.name}'")
             return False  # Already exists
 
         try:
@@ -304,7 +397,7 @@ class CSVTestManager:
 
             # Cache the created label
             if hasattr(response, "label") and response.label:
-                self._existing_labels[actual_name] = response.label
+                self._existing_labels[response.label.name] = response.label
             else:
                 # Create a label object for caching
                 created_label = Label(name=actual_name, color=label_color, description=label_desc)
@@ -314,7 +407,32 @@ class CSVTestManager:
             return True
 
         except SyntheticsAPIError as e:
-            self.logger.error(f"Error creating label {label_name}: {e}")
+            error_msg = str(e)
+            # Check if label already exists
+            if "already exists" in error_msg.lower():
+                self.logger.debug(f"Label already exists: {label_name}")
+                # Reload labels to get the correct casing and ID
+                try:
+                    label_response = self.client.list_labels()
+                    labels_list = (
+                        label_response.labels
+                        if hasattr(label_response, "labels") and label_response.labels
+                        else []
+                    )
+                    # Update cache with proper label objects
+                    for lbl in labels_list:
+                        if lbl.name.lower() == actual_name.lower():
+                            self._existing_labels[lbl.name] = lbl
+                            self.logger.debug(f"Found existing label '{lbl.name}' with ID {lbl.id}")
+                            break
+                except Exception as reload_error:
+                    self.logger.warning(f"Could not reload label after 'already exists' error: {reload_error}")
+                return False  # Didn't create it, but it exists
+            else:
+                self.logger.error(f"Error creating label {label_name}: {e}")
+                return False
+        except Exception as e:
+            self.logger.error(f"Unexpected error creating label {label_name}: {e}")
             return False
 
     def _ensure_site_exists(self, test_data: Dict[str, str]) -> Optional[Site]:
@@ -474,14 +592,23 @@ class CSVTestManager:
         return agent_ids
 
     def _get_site_agents(self, site_name: str) -> List[str]:
-        """Get agent IDs for a specific site."""
+        """
+        Get private agent IDs for a specific site.
+        
+        Only returns private agents. If no private agents exist for the site,
+        returns an empty list.
+        """
         # Ensure agents are loaded
         self._load_agents_cache()
         
-        # If we have real agents, filter by site
+        # If we have real agents, filter by site and private type
         if self._existing_agents:
             site_agents = []
             for agent in self._existing_agents:
+                # Only include private agents
+                if agent.type != "private":
+                    continue
+                    
                 # Check if agent belongs to the site (multiple ways to match)
                 if (hasattr(agent, "site_name") and agent.site_name == site_name) or \
                    (hasattr(agent, "city") and site_name.startswith(agent.city)) or \
@@ -489,19 +616,15 @@ class CSVTestManager:
                     site_agents.append(agent.id)
             
             if site_agents:
+                self.logger.debug(f"Found {len(site_agents)} private agents for site '{site_name}'")
                 return site_agents
+            else:
+                self.logger.warning(f"No private agents found for site '{site_name}'")
+                return []
         
-        # Fallback to mock agent IDs based on site name for development
-        site_agent_map = {
-            "New York DC": ["agent-nyc-1", "agent-nyc-2"],
-            "London Office": ["agent-lon-1"],
-            "Tokyo Branch": ["agent-tyo-1"],
-            "San Francisco DC": ["agent-sfo-1", "agent-sfo-2"],
-            "Frankfurt DC": ["agent-fra-1"],
-            "Default Site": ["agent-default"],  # Default for simplified CSV
-        }
-
-        return site_agent_map.get(site_name, ["agent-default"])
+        # No agents loaded - return empty list (will skip test creation)
+        self.logger.warning(f"No agents available for site '{site_name}'")
+        return []
 
     def _find_existing_test(self, test_name: str) -> Optional[Test]:
         """Find an existing test by name."""
@@ -692,8 +815,16 @@ class CSVTestManager:
 
         removed_count = 0
 
+        # Normalize management tag name to match existing label
+        normalized_tags = self._normalize_label_names([management_tag])
+        if not normalized_tags:
+            self.logger.error(f"Could not normalize management tag '{management_tag}'")
+            return 0
+        
+        normalized_tag = normalized_tags[0]
+
         # Find tests with management tag that are not in current CSV
-        managed_tests = filter_tests_by_labels(self._existing_tests, [management_tag])
+        managed_tests = filter_tests_by_labels(self._existing_tests, [normalized_tag])
 
         for test in managed_tests:
             if test.name not in current_test_names:
@@ -727,8 +858,16 @@ class CSVTestManager:
         
         deleted_count = 0
         
+        # Normalize management tag name to match existing label
+        normalized_tags = self._normalize_label_names([management_tag])
+        if not normalized_tags:
+            self.logger.error(f"Could not normalize management tag '{management_tag}'")
+            return 0
+        
+        normalized_tag = normalized_tags[0]
+        
         # Find all tests with the management tag
-        managed_tests = filter_tests_by_labels(self._existing_tests, [management_tag])
+        managed_tests = filter_tests_by_labels(self._existing_tests, [normalized_tag])
         
         self.logger.info(f"Found {len(managed_tests)} tests with management tag '{management_tag}'")
         
@@ -742,6 +881,74 @@ class CSVTestManager:
                     self.logger.warning(f"Cannot delete test {test.name}: no ID found")
             except SyntheticsAPIError as e:
                 self.logger.error(f"Error deleting test {test.name}: {e}")
+        
+        # Clear the cache since we deleted tests
+        self._existing_tests = []
+        
+        return deleted_count
+
+    def delete_tests_from_csv(self, csv_file: str, management_tag: str) -> int:
+        """
+        Delete only the tests that are defined in the CSV file.
+        
+        This is used for the --delete mode to remove specific tests.
+        
+        Args:
+            csv_file: Path to the CSV file
+            management_tag: The management tag to filter tests by
+            
+        Returns:
+            Number of tests deleted
+        """
+        # Load existing tests if not already loaded
+        if not self._existing_tests:
+            self._load_existing_resources()
+        
+        # Read test names from CSV
+        csv_test_names = set()
+        try:
+            import csv
+            with open(csv_file, "r", encoding="utf-8") as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    test_name = row.get("test_name", "").strip()
+                    if test_name:
+                        csv_test_names.add(test_name)
+        except Exception as e:
+            self.logger.error(f"Error reading CSV file: {e}")
+            return 0
+        
+        if not csv_test_names:
+            self.logger.warning("No test names found in CSV")
+            return 0
+        
+        self.logger.info(f"Found {len(csv_test_names)} test names in CSV")
+        
+        deleted_count = 0
+        
+        # Normalize management tag name to match existing label
+        normalized_tags = self._normalize_label_names([management_tag])
+        if not normalized_tags:
+            self.logger.error(f"Could not normalize management tag '{management_tag}'")
+            return 0
+        
+        normalized_tag = normalized_tags[0]
+        
+        # Find all tests with the management tag
+        managed_tests = filter_tests_by_labels(self._existing_tests, [normalized_tag])
+        
+        # Delete only tests that are in the CSV
+        for test in managed_tests:
+            if test.name in csv_test_names:
+                try:
+                    if test.id:  # Only delete if test has an ID
+                        self.client.delete_test(test.id)
+                        self.logger.info(f"Deleted test: {test.name}")
+                        deleted_count += 1
+                    else:
+                        self.logger.warning(f"Cannot delete test {test.name}: no ID found")
+                except SyntheticsAPIError as e:
+                    self.logger.error(f"Error deleting test {test.name}: {e}")
         
         # Clear the cache since we deleted tests
         self._existing_tests = []

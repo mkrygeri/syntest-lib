@@ -162,3 +162,30 @@ cython_debug/
 kentik_config.txt
 *.credentials
 .secrets
+
+# Customer-specific data and troubleshooting files
+# CSV files (except examples)
+*.csv
+!example*.csv
+!**/examples/**/*.csv
+
+# Test results and demo files
+*_results.json
+*_demo.*
+Inventory.*
+
+# Troubleshooting and analysis documentation
+*SUMMARY.md
+*ANALYSIS.md
+*PROBLEMS*.md
+*FIX*.md
+*IMPLEMENTATION*.md
+*MAPPING.md
+
+# Customer-specific scripts (keep library test files in tests/)
+test_*.py
+!tests/test_*.py
+
+# Shell scripts with potential credentials
+set_credentials.sh
+setup_github.sh

@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "kentik-synthetics": {
+      "command": "syntest-mcp-server",
+      "env": {
+        "KENTIK_EMAIL": "your.email@example.com",
+        "KENTIK_API_TOKEN": "your-api-token-here"
+      }
+    }
+  }
+}

@@ -4,7 +4,14 @@ A comprehensive Python library for managing synthetic tests, labels, and sites u
 
 ## Features
 
-### 🧪 **Synthetic Test Management**
+### � **MCP Server for AI Assistants** 🆕
+- **Use Claude or other AI assistants to manage your synthetic tests**
+- **Natural language test creation and monitoring**
+- **Automated health analysis and troubleshooting**
+- **10+ tools for test management, results analysis, and infrastructure queries**
+- **See [MCP Server Documentation](src/syntest_lib/mcp_server/README.md)**
+
+### �🧪 **Synthetic Test Management**
 - Support for all test types: IP, Hostname, URL, DNS, Page Load, and Agent tests
 - Comprehensive test configuration with health settings and alerting
 - Multi-site test deployment with automatic agent assignment
@@ -61,8 +68,29 @@ A comprehensive Python library for managing synthetic tests, labels, and sites u
 ### Installation
 
 ```bash
+# Basic installation
 pip install syntest-lib
+
+# With MCP server for AI assistants (recommended)
+pip install syntest-lib[mcp]
 ```
+
+### Using with AI Assistants (MCP) 🤖
+
+The easiest way to use syntest-lib is through Claude or other AI assistants:
+
+1. Install with MCP support: `pip install syntest-lib[mcp]`
+2. Configure Claude Desktop (see [MCP Quick Start](src/syntest_lib/mcp_server/QUICKSTART.md))
+3. Ask Claude to manage your tests naturally:
+
+```
+"Show me all my synthetic tests"
+"What's the health status of test 12345?"
+"Create a DNS grid test for example.com"
+"What's the uptime for my production tests today?"
+```
+
+See the full [MCP Server Documentation](src/syntest_lib/mcp_server/README.md) for details.
 
 ### Basic Usage
 
@@ -175,6 +203,9 @@ python createtests.py my_tests.csv
 # With custom management tag
 python createtests.py my_tests.csv my-project-tag
 
+# Delete mode - remove specific tests defined in CSV ⭐ NEW
+python createtests.py my_tests.csv my-project-tag --delete
+
 # Redeploy mode - delete all existing tests and recreate from CSV
 python createtests.py my_tests.csv --redeploy
 
@@ -190,9 +221,15 @@ export KENTIK_API_TOKEN="your-api-token"
 
 **Modes:**
 - **Default**: Creates new tests, updates existing ones, removes tests not in CSV
+- **--delete**: Deletes ONLY tests defined in the CSV with the management tag ⭐ NEW
+  - ✅ **Safe deletion**: Only removes tests that appear in both CSV and have the tag
+  - 💡 **Use case**: Clean up specific tests, selective removal
 - **--redeploy**: Deletes ALL tests with the management tag first, then creates fresh from CSV
   - ⚠️ **Use with caution**: This completely removes and recreates all managed tests
   - 💡 **Use case**: Clean slate deployment, major configuration changes, troubleshooting
+
+**Private Agents Only:** ⭐ NEW
+All tests now use **private agents exclusively**. Tests without available private agents are automatically skipped with a warning.
 
 **Output:**
 ```

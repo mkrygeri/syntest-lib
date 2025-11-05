@@ -4,12 +4,13 @@
 Quick CSV test creation script.
 
 Usage:
-    python createtests.py path/to/your/tests.csv [management_tag] [--redeploy]
+    python createtests.py path/to/your/tests.csv [management_tag] [--redeploy|--delete]
 
 Examples:
     python createtests.py tests.csv
     python createtests.py my_tests.csv my-project
     python createtests.py tests.csv --redeploy  # Delete all tests and recreate
+    python createtests.py tests.csv backend-csv-managed --delete  # Delete all tests in CSV
 """
 
 import sys
@@ -22,20 +23,22 @@ def main():
     logging.basicConfig(level=logging.INFO, format='%(message)s')
     
     if len(sys.argv) < 2:
-        print("Usage: python createtests.py <csv_file> [management_tag] [--redeploy]")
+        print("Usage: python createtests.py <csv_file> [management_tag] [--redeploy|--delete]")
         print("Example: python createtests.py tests.csv my-project")
         print("         python createtests.py tests.csv --redeploy")
+        print("         python createtests.py tests.csv backend-csv-managed --delete")
         sys.exit(1)
     
     # Parse arguments
     csv_file = sys.argv[1]
     redeploy = "--redeploy" in sys.argv
+    delete_mode = "--delete" in sys.argv
     
-    # Get management tag (skip --redeploy if present)
+    # Get management tag (skip --redeploy and --delete if present)
     management_tag = "csv-managed"
     if len(sys.argv) > 2:
         for arg in sys.argv[2:]:
-            if arg != "--redeploy":
+            if arg not in ["--redeploy", "--delete"]:
                 management_tag = arg
                 break
     
@@ -63,6 +66,8 @@ def main():
     print(f"Management tag: {management_tag}")
     if redeploy:
         print("🔄 REDEPLOY MODE: Will delete all existing tests with this tag and recreate from CSV")
+    elif delete_mode:
+        print("🗑️  DELETE MODE: Will delete all tests found in CSV with the management tag")
     print("-" * 50)
     
     try:
@@ -72,6 +77,13 @@ def main():
             deleted_count = csv_manager.delete_all_managed_tests(management_tag)
             print(f"🗑️  Deleted {deleted_count} existing tests")
             print()
+        
+        # If delete mode, delete only tests in the CSV
+        if delete_mode:
+            print("⚠️  Deleting tests from CSV...")
+            deleted_count = csv_manager.delete_tests_from_csv(csv_file, management_tag)
+            print(f"🗑️  Deleted {deleted_count} tests")
+            return  # Exit after deletion
         
         # Process the CSV file
         results = csv_manager.load_tests_from_csv(csv_file, management_tag)
