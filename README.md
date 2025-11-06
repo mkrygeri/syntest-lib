@@ -423,6 +423,37 @@ response = client.create_site(site)
 print(f"🏢 Created site: {site.title}")
 ```
 
+### Pause and Unpause Tests
+
+```python
+from syntest_lib import SyntheticsClient
+from syntest_lib.models import TestStatus
+
+client = SyntheticsClient(email="user@company.com", api_token="token")
+
+# Pause tests for maintenance
+test_ids = ["12345", "12346", "12347"]
+
+for test_id in test_ids:
+    client.set_test_status(test_id, TestStatus.PAUSED)
+    print(f"🔴 Paused test {test_id}")
+
+# ... perform maintenance ...
+
+# Unpause tests after maintenance
+for test_id in test_ids:
+    client.set_test_status(test_id, TestStatus.ACTIVE)
+    print(f"🟢 Activated test {test_id}")
+```
+
+See [examples/pause_unpause_tests.py](examples/pause_unpause_tests.py) for more comprehensive examples including:
+- Pausing/unpausing by test name
+- Checking test status
+- Maintenance window workflows
+- Bulk operations by label
+
+For CSV-based bulk operations, see [BULK_STATUS_CHANGE_GUIDE.md](BULK_STATUS_CHANGE_GUIDE.md).
+
 ### Analytics and Reporting
 
 ```python
