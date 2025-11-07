@@ -139,6 +139,13 @@ print(f"🔄 Updated: {stats['tests_updated']} tests")
 print(f"🗑️  Removed: {stats['tests_removed']} tests")
 print(f"🏷️  Created: {stats['labels_created']} labels")
 print(f"🏢 Created: {stats['sites_created']} sites")
+
+# Export tests back to CSV for bulk editing  ⭐ NEW
+result = csv_manager.export_tests_to_csv(
+    output_path="current_tests.csv",
+    management_tag="project-alpha"
+)
+print(f"📤 Exported: {result['exported']} tests")
 ```
 
 #### 🚀 **Simplified CSV Format** (Minimal Required Fields)
@@ -211,6 +218,27 @@ python createtests.py my_tests.csv --redeploy
 
 # Redeploy with custom tag
 python createtests.py my_tests.csv my-project --redeploy
+```
+
+**Export Tests to CSV:**  ⭐ NEW
+
+```bash
+# Export all tests to CSV for bulk editing
+python export_tests_to_csv.py
+
+# Export tests with specific management tag
+python export_tests_to_csv.py --tag csv-managed
+
+# Export to custom file
+python export_tests_to_csv.py --output my_tests.csv
+
+# Exclude paused tests
+python export_tests_to_csv.py --exclude-paused
+
+# Workflow: Export → Edit → Redeploy
+python export_tests_to_csv.py --output my_tests.csv
+vim my_tests.csv  # Make your changes
+python createtests.py my_tests.csv csv-managed
 ```
 
 **Environment Variables Required:**

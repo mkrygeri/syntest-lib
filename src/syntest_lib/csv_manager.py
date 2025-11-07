@@ -1033,6 +1033,193 @@ class CSVTestManager:
         return changes
 
 
+    def export_tests_to_csv(
+        self,
+        output_path: str,
+        management_tag: Optional[str] = None,
+        include_paused: bool = True
+    ) -> Dict[str, Any]:
+        """
+        Export existing tests to a CSV file for bulk editing.
+        
+        This creates a deployment CSV from currently configured tests, allowing
+        users to:
+        1. Export current test configurations
+        2. Edit the CSV to make bulk changes
+        3. Redeploy using load_tests_from_csv()
+        
+        Args:
+            output_path: Path where the CSV file will be created
+            management_tag: Optional tag to filter tests (e.g., "csv-managed")
+            include_paused: Whether to include paused tests (default: True)
+            
+        Returns:
+            Dictionary with export statistics
+        """
+        self.logger.info(f"Exporting tests to CSV: {output_path}")
+        
+        # Load current tests
+        response = self.client.list_tests()
+        all_tests = response.tests if hasattr(response, 'tests') and response.tests else []
+        
+        # Filter by management tag if provided
+        if management_tag:
+            tests = [
+                test for test in all_tests
+                if test.labels and management_tag in test.labels
+            ]
+            self.logger.info(f"Filtered to {len(tests)} tests with tag '{management_tag}'")
+        else:
+            tests = all_tests
+            self.logger.info(f"Exporting all {len(tests)} tests")
+        
+        # Filter paused tests if requested
+        if not include_paused:
+            tests = [
+                test for test in tests
+                if test.status != "TEST_STATUS_PAUSED"
+            ]
+            self.logger.info(f"Filtered to {len(tests)} active tests")
+        
+        if not tests:
+            self.logger.warning("No tests to export")
+            return {"exported": 0, "skipped": 0}
+        
+        # Load sites for site information
+        sites_response = self.client.list_sites()
+        sites = sites_response.sites if hasattr(sites_response, 'sites') and sites_response.sites else []
+        site_map = {site.id: site for site in sites if site.id}
+        
+        # Load agents for agent information
+        agents_response = self.client.list_agents()
+        agents = agents_response.agents if hasattr(agents_response, 'agents') and agents_response.agents else []
+        agent_map = {agent.id: agent for agent in agents if agent.id}
+        
+        # Prepare CSV data
+        csv_data = []
+        skipped = 0
+        
+        for test in tests:
+            try:
+                # Get agent names and determine site from first agent
+                agent_names = []
+                site_name = ""
+                
+                if test.settings and test.settings.agent_ids:
+                    for agent_id in test.settings.agent_ids:
+                        if agent_id in agent_map:
+                            agent = agent_map[agent_id]
+                            agent_names.append(agent.alias or agent_id)
+                            # Use first agent's site for site information
+                            if not site_name and hasattr(agent, 'site_name') and agent.site_name:
+                                site_name = agent.site_name
+                
+                # Get site information from site_name
+                site_type = ""
+                site_lat = ""
+                site_lon = ""
+                site_address = ""
+                site_city = ""
+                site_country = ""
+                site_postal_code = ""
+                
+                # Find site by name
+                for site in sites:
+                    if site.title == site_name:
+                        site_type = str(site.type) if site.type else ""
+                        site_lat = str(site.lat) if site.lat else ""
+                        site_lon = str(site.lon) if site.lon else ""
+                        
+                        if site.postal_address:
+                            site_address = site.postal_address.address or ""
+                            site_city = site.postal_address.city or ""
+                            site_country = site.postal_address.country or ""
+                            site_postal_code = site.postal_address.postal_code or ""
+                        break
+                
+                # Get DNS servers from test settings
+                dns_servers = []
+                if test.settings and hasattr(test.settings, 'hostname'):
+                    hostname_settings = test.settings.hostname
+                    if hostname_settings and hasattr(hostname_settings, 'target'):
+                        # For hostname/DNS tests, the target might contain DNS servers
+                        pass  # DNS servers are typically in the test configuration
+                
+                # Determine target based on test type
+                target = ""
+                if test.settings:
+                    if hasattr(test.settings, 'hostname') and test.settings.hostname:
+                        target = test.settings.hostname.target or ""
+                    elif hasattr(test.settings, 'ip') and test.settings.ip:
+                        target = test.settings.ip.targets[0] if test.settings.ip.targets else ""
+                    elif hasattr(test.settings, 'agent') and test.settings.agent:
+                        target = test.settings.agent.target or ""
+                
+                # Determine test type
+                test_type = ""
+                if test.type:
+                    # Convert from TEST_TYPE_DNS to dns
+                    test_type = str(test.type).replace("TEST_TYPE_", "").lower()
+                
+                # Format labels
+                labels_str = ", ".join(test.labels) if test.labels else ""
+                
+                # Build CSV row
+                row = {
+                    "test_name": test.name or "",
+                    "test_type": test_type,
+                    "target": target,
+                    "site_name": site_name,
+                    "site_type": site_type,
+                    "site_lat": site_lat,
+                    "site_lon": site_lon,
+                    "site_address": site_address,
+                    "site_city": site_city,
+                    "site_country": site_country,
+                    "site_postal_code": site_postal_code,
+                    "labels": labels_str,
+                    "dns_servers": ",".join(dns_servers) if dns_servers else "",
+                    "agent_names": ",".join(agent_names),
+                }
+                
+                csv_data.append(row)
+                
+            except Exception as e:
+                self.logger.warning(f"Skipping test {test.name or test.id}: {e}")
+                skipped += 1
+        
+        # Write CSV file
+        fieldnames = [
+            "test_name",
+            "test_type",
+            "target",
+            "site_name",
+            "site_type",
+            "site_lat",
+            "site_lon",
+            "site_address",
+            "site_city",
+            "site_country",
+            "site_postal_code",
+            "labels",
+            "dns_servers",
+            "agent_names",
+        ]
+        
+        with open(output_path, "w", newline="", encoding="utf-8") as csvfile:
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(csv_data)
+        
+        self.logger.info(f"✅ Exported {len(csv_data)} tests to {output_path}")
+        
+        return {
+            "exported": len(csv_data),
+            "skipped": skipped,
+            "output_path": output_path
+        }
+
+
 def create_example_csv(output_path: str = "example_tests.csv"):
     """Create an example CSV file showing the required format."""
 
