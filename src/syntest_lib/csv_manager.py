@@ -1139,19 +1139,33 @@ class CSVTestManager:
                 
                 # Get DNS servers from test settings
                 dns_servers = []
-                if test.settings and hasattr(test.settings, 'hostname'):
-                    hostname_settings = test.settings.hostname
-                    if hostname_settings and hasattr(hostname_settings, 'target'):
-                        # For hostname/DNS tests, the target might contain DNS servers
-                        pass  # DNS servers are typically in the test configuration
+                if test.settings:
+                    # Check dns field for DNS tests
+                    if hasattr(test.settings, 'dns') and test.settings.dns:
+                        if hasattr(test.settings.dns, 'servers') and test.settings.dns.servers:
+                            dns_servers = test.settings.dns.servers
+                    # Check dns_grid field for DNS grid tests
+                    elif hasattr(test.settings, 'dns_grid') and test.settings.dns_grid:
+                        if hasattr(test.settings.dns_grid, 'servers') and test.settings.dns_grid.servers:
+                            dns_servers = test.settings.dns_grid.servers
                 
                 # Determine target based on test type
                 target = ""
                 if test.settings:
                     if hasattr(test.settings, 'hostname') and test.settings.hostname:
                         target = test.settings.hostname.target or ""
+                    elif hasattr(test.settings, 'dns') and test.settings.dns:
+                        target = test.settings.dns.target or ""
+                    elif hasattr(test.settings, 'dns_grid') and test.settings.dns_grid:
+                        target = test.settings.dns_grid.target or ""
+                    elif hasattr(test.settings, 'url') and test.settings.url:
+                        target = test.settings.url.target or ""
+                    elif hasattr(test.settings, 'page_load') and test.settings.page_load:
+                        target = test.settings.page_load.target or ""
                     elif hasattr(test.settings, 'ip') and test.settings.ip:
                         target = test.settings.ip.targets[0] if test.settings.ip.targets else ""
+                    elif hasattr(test.settings, 'network_grid') and test.settings.network_grid:
+                        target = test.settings.network_grid.targets[0] if test.settings.network_grid.targets else ""
                     elif hasattr(test.settings, 'agent') and test.settings.agent:
                         target = test.settings.agent.target or ""
                 
