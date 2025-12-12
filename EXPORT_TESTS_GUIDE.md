@@ -76,10 +76,11 @@ python createtests.py backup.csv csv-managed
 ### Basic Options
 
 ```bash
---output, -o FILE    Output CSV file path (default: exported_tests.csv)
---tag, -t TAG        Filter by management tag (e.g., 'csv-managed')
---exclude-paused     Don't export paused tests
---verbose, -v        Enable detailed logging
+--output, -o FILE         Output CSV file path (default: exported_tests.csv)
+--tag, -t TAG             Filter by management tag (e.g., 'csv-managed')
+--exclude-paused          Don't export paused tests
+--allow-public-agents     Allow public/global agents (default: private only)
+--verbose, -v             Enable detailed logging
 ```
 
 ### Examples
@@ -97,6 +98,9 @@ python export_tests_to_csv.py --output /tmp/backup.csv
 # Export active tests only
 python export_tests_to_csv.py --exclude-paused
 
+# Allow public agents (useful for Kentik global agent network)
+python export_tests_to_csv.py --allow-public-agents
+
 # Verbose mode for debugging
 python export_tests_to_csv.py --verbose
 ```
@@ -109,7 +113,7 @@ python export_tests_to_csv.py --verbose
 from syntest_lib import SyntheticsClient, TestGenerator
 from syntest_lib.csv_manager import CSVTestManager
 
-# Initialize
+# Initialize (private agents only - default)
 client = SyntheticsClient(email="your-email", api_token="your-token")
 generator = TestGenerator()
 manager = CSVTestManager(client, generator)
@@ -120,6 +124,18 @@ result = manager.export_tests_to_csv("all_tests.csv")
 print(f"Exported: {result['exported']}")
 print(f"Skipped: {result['skipped']}")
 print(f"Output: {result['output_path']}")
+```
+
+### Allow Public Agents
+
+```python
+# Initialize with public agents allowed
+client = SyntheticsClient(email="your-email", api_token="your-token")
+generator = TestGenerator()
+manager = CSVTestManager(client, generator, allow_public_agents=True)
+
+# Now exports will include tests using public/global agents
+result = manager.export_tests_to_csv("all_tests.csv")
 ```
 
 ### Export with Filters

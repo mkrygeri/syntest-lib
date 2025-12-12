@@ -93,6 +93,12 @@ Workflow:
     )
 
     parser.add_argument(
+        "--allow-public-agents",
+        action="store_true",
+        help="Allow public/global agents (default: private agents only)",
+    )
+
+    parser.add_argument(
         "--verbose", "-v", action="store_true", help="Enable verbose logging"
     )
 
@@ -119,7 +125,7 @@ Workflow:
         logger.info("Initializing Kentik Synthetics client...")
         client = SyntheticsClient(email=email, api_token=api_token)
         generator = TestGenerator()
-        manager = CSVTestManager(client, generator)
+        manager = CSVTestManager(client, generator, allow_public_agents=args.allow_public_agents)
 
         # Display export configuration
         logger.info("")
@@ -129,6 +135,7 @@ Workflow:
         logger.info(f"Output file:      {args.output}")
         logger.info(f"Management tag:   {args.tag or '(all tests)'}")
         logger.info(f"Include paused:   {not args.exclude_paused}")
+        logger.info(f"Public agents:    {'allowed' if args.allow_public_agents else 'disabled (private only)'}")
         logger.info("=" * 70)
         logger.info("")
 

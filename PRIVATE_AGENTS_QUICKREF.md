@@ -15,19 +15,34 @@ python createtests.py <csv_file> <management_tag> --delete
 python createtests.py ./my_tests.csv backend-csv-managed --delete
 ```
 
-### 2. Private Agents Only
-All tests now use **private agents exclusively**. Global/public agents are filtered out automatically.
+### 2. Private Agents Only (Default)
+By default, only **private agents** are used. Global/public agents are filtered out automatically.
 
-**Behavior:**
+**Default Behavior:**
 - ✅ Only private agents loaded from API
 - ✅ Tests without private agents are skipped
 - ✅ Clear warning messages when skipping
+
+### 3. Allow Public Agents (`--allow-public-agents`)
+If you need to use public/global agents (Kentik's global agent network), use the `--allow-public-agents` flag.
+
+**Usage:**
+```bash
+python createtests.py tests.csv my-tag --allow-public-agents
+python export_tests_to_csv.py --allow-public-agents
+```
+
+**Programmatic:**
+```python
+manager = CSVTestManager(client, generator, allow_public_agents=True)
+```
 
 ## Command Options
 
 | Command | Action | Use Case |
 |---------|--------|----------|
-| `python createtests.py tests.csv tag` | Create/update tests | Normal operation |
+| `python createtests.py tests.csv tag` | Create/update tests | Normal operation (private agents only) |
+| `python createtests.py tests.csv tag --allow-public-agents` | Create with all agents | Use public + private agents |
 | `python createtests.py tests.csv tag --delete` | Delete tests in CSV | Remove specific tests |
 | `python createtests.py tests.csv tag --redeploy` | Delete all + recreate | Full refresh |
 

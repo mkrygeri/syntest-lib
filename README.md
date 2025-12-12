@@ -204,13 +204,16 @@ DNS Grid Test,dns_grid,example.com,Tokyo Branch,"grid-tests,monitoring",8.8.8.8;
 For quick CSV processing, use the included `createtests.py` script:
 
 ```bash
-# Basic usage - create/update tests from CSV
+# Basic usage - create/update tests from CSV (private agents only)
 python createtests.py my_tests.csv
 
 # With custom management tag
 python createtests.py my_tests.csv my-project-tag
 
-# Delete mode - remove specific tests defined in CSV ⭐ NEW
+# Allow public/global agents ⭐ NEW
+python createtests.py my_tests.csv --allow-public-agents
+
+# Delete mode - remove specific tests defined in CSV
 python createtests.py my_tests.csv my-project-tag --delete
 
 # Redeploy mode - delete all existing tests and recreate from CSV
@@ -220,7 +223,7 @@ python createtests.py my_tests.csv --redeploy
 python createtests.py my_tests.csv my-project --redeploy
 ```
 
-**Export Tests to CSV:**  ⭐ NEW
+**Export Tests to CSV:**
 
 ```bash
 # Export all tests to CSV for bulk editing
@@ -234,6 +237,9 @@ python export_tests_to_csv.py --output my_tests.csv
 
 # Exclude paused tests
 python export_tests_to_csv.py --exclude-paused
+
+# Allow public/global agents ⭐ NEW
+python export_tests_to_csv.py --allow-public-agents
 
 # Workflow: Export → Edit → Redeploy
 python export_tests_to_csv.py --output my_tests.csv
@@ -256,13 +262,25 @@ export KENTIK_API_TOKEN="your-api-token"
   - ⚠️ **Use with caution**: This completely removes and recreates all managed tests
   - 💡 **Use case**: Clean slate deployment, major configuration changes, troubleshooting
 
-**Private Agents Only:** ⭐ NEW
-All tests now use **private agents exclusively**. Tests without available private agents are automatically skipped with a warning.
+**Agent Types:**
+By default, only **private agents** are used for test creation. Public/global agents are filtered out automatically.
+
+- Use `--allow-public-agents` to include Kentik's global agent network
+- Tests without available agents (based on your setting) are automatically skipped with a warning
+
+```bash
+# Default: private agents only
+python createtests.py my_tests.csv
+
+# Include public/global agents
+python createtests.py my_tests.csv --allow-public-agents
+```
 
 **Output:**
 ```
 Processing CSV file: my_tests.csv
 Management tag: csv-managed
+🔒 PRIVATE AGENTS ONLY: Use --allow-public-agents to include public agents
 --------------------------------------------------
 ✅ Processing complete!
 📝 Created: 5 tests

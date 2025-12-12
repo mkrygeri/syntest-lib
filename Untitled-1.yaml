@@ -1,0 +1,75 @@
+{{- /*
+Custom Slack webhook template - Limited fields version
+Based on: https://github.com/kentik/custom-notification-templates
+*/ -}}
+
+{
+{{- if .IsSingleEvent -}}
+  {{- with .Event -}}
+    "blocks": [
+      {
+        "type": "divider"
+      },
+      {
+        "type": "header",
+        "text": {
+          "type": "plain_text",
+          "emoji": true,
+          "text": "{{ $.Summary }}"
+        }
+      },
+      {
+        "type": "context",
+        "elements": [
+          {
+            "type": "mrkdwn",
+            "text": "{{ $.Headline }} for *{{ $.CompanyName }}* sent on {{ $.NowDatetime }}"
+          }
+        ]
+      },
+      {
+        "type": "section",
+        "text": {
+          "type": "mrkdwn",
+          "text": "
+            {{- /* Details.General - Only specified fields */ -}}
+            {{- range $index, $detail := .Details.General -}}
+              {{- if or (eq $detail.Name "PolicyType") (eq $detail.Name "SourcePolicyName") (eq $detail.Name "PreviousSeverityCode") (eq $detail.Name "CurrentSeverityCode") (eq $detail.Name "AlarmID") -}}
+                *{{ $detail.LabelOrName }}*: {{ $detail.Value }}\n
+              {{- end -}}
+            {{- end -}}
+            {{- /* Dimensions - Only device-related fields */ -}}
+            {{- with $dimensions := .Details.WithTag "dimension" -}}
+              {{- if gt (len $dimensions) 0 -}}
+                *Device Information*:
+                {{- range $index, $detail := $dimensions -}}
+                  {{- if or (eq $detail.Name "DeviceName") (eq $detail.Name "DeviceLocation") (eq $detail.Name "DeviceSerialNumber") (eq $detail.Name "DeviceVendor") -}}
+                    - *{{ $detail.LabelOrName }}*: {{ $detail.Value }}\n
+                  {{- end -}}
+                {{- end -}}
+              {{- end -}}
+            {{- end -}}
+          "
+        }
+      },
+      {
+        "type": "actions",
+        "elements": [
+          {{- range $index, $url := .Details.WithTag "url" -}}
+          {{- join $index -}}
+          {
+            "type": "button",
+            "action_id": "{{ $url.Name }}",
+            "text": {
+              "type": "plain_text",
+              "text": "{{ $url.LabelOrName }}"
+            },
+            "url": "{{ $url.Value }}"
+          }
+          {{- end -}}
+        ]
+      }
+    ]
+  {{- end -}}
+{{- end -}}
+}

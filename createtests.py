@@ -4,13 +4,14 @@
 Quick CSV test creation script.
 
 Usage:
-    python createtests.py path/to/your/tests.csv [management_tag] [--redeploy|--delete]
+    python createtests.py path/to/your/tests.csv [management_tag] [--redeploy|--delete] [--allow-public-agents]
 
 Examples:
     python createtests.py tests.csv
     python createtests.py my_tests.csv my-project
     python createtests.py tests.csv --redeploy  # Delete all tests and recreate
     python createtests.py tests.csv backend-csv-managed --delete  # Delete all tests in CSV
+    python createtests.py tests.csv --allow-public-agents  # Allow public/global agents
 """
 
 import sys
@@ -23,22 +24,24 @@ def main():
     logging.basicConfig(level=logging.INFO, format='%(message)s')
     
     if len(sys.argv) < 2:
-        print("Usage: python createtests.py <csv_file> [management_tag] [--redeploy|--delete]")
+        print("Usage: python createtests.py <csv_file> [management_tag] [--redeploy|--delete] [--allow-public-agents]")
         print("Example: python createtests.py tests.csv my-project")
         print("         python createtests.py tests.csv --redeploy")
         print("         python createtests.py tests.csv backend-csv-managed --delete")
+        print("         python createtests.py tests.csv --allow-public-agents")
         sys.exit(1)
     
     # Parse arguments
     csv_file = sys.argv[1]
     redeploy = "--redeploy" in sys.argv
     delete_mode = "--delete" in sys.argv
+    allow_public_agents = "--allow-public-agents" in sys.argv
     
-    # Get management tag (skip --redeploy and --delete if present)
+    # Get management tag (skip flag arguments)
     management_tag = "csv-managed"
     if len(sys.argv) > 2:
         for arg in sys.argv[2:]:
-            if arg not in ["--redeploy", "--delete"]:
+            if arg not in ["--redeploy", "--delete", "--allow-public-agents"]:
                 management_tag = arg
                 break
     
@@ -60,10 +63,14 @@ def main():
     
     client = SyntheticsClient(email=email, api_token=api_token)
     generator = TestGenerator()
-    csv_manager = CSVTestManager(client, generator)
+    csv_manager = CSVTestManager(client, generator, allow_public_agents=allow_public_agents)
     
     print(f"Processing CSV file: {csv_file}")
     print(f"Management tag: {management_tag}")
+    if allow_public_agents:
+        print("🌐 PUBLIC AGENTS: Allowing public/global agents")
+    else:
+        print("🔒 PRIVATE AGENTS ONLY: Use --allow-public-agents to include public agents")
     if redeploy:
         print("🔄 REDEPLOY MODE: Will delete all existing tests with this tag and recreate from CSV")
     elif delete_mode:

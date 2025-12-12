@@ -30,11 +30,20 @@ class CSVTestManager:
     - Automatic site and label creation when missing
     """
 
-    def __init__(self, client: SyntheticsClient, generator: TestGenerator):
-        """Initialize the CSV test manager."""
+    def __init__(self, client: SyntheticsClient, generator: TestGenerator, allow_public_agents: bool = False):
+        """
+        Initialize the CSV test manager.
+        
+        Args:
+            client: SyntheticsClient instance for API calls
+            generator: TestGenerator instance for creating test configs
+            allow_public_agents: If True, allow both public and private agents.
+                                 If False (default), only private agents are used.
+        """
         self.client = client
         self.generator = generator
         self.logger = logging.getLogger(__name__)
+        self.allow_public_agents = allow_public_agents
 
         # Cache for existing resources to minimize API calls
         self._existing_tests: List[Test] = []
@@ -211,7 +220,8 @@ class CSVTestManager:
             
             # Skip test creation if no agents available
             if not agents:
-                self.logger.warning(f"Skipping test '{test_name}' - no private agents available for site '{site_name}'")
+                agent_type_str = "agents" if self.allow_public_agents else "private agents"
+                self.logger.warning(f"Skipping test '{test_name}' - no {agent_type_str} available for site '{site_name}'")
                 result["skipped"] = 1
                 return result
 
@@ -506,8 +516,8 @@ class CSVTestManager:
                     if not agent.id:
                         continue
                     
-                    # Only include private agents by default
-                    if agent.type != "private":
+                    # Filter agents based on allow_public_agents setting
+                    if not self.allow_public_agents and agent.type != "private":
                         self.logger.debug(f"Skipping agent '{agent.alias}' (type: {agent.type}) - only private agents allowed")
                         continue
                         
@@ -593,20 +603,21 @@ class CSVTestManager:
 
     def _get_site_agents(self, site_name: str) -> List[str]:
         """
-        Get private agent IDs for a specific site.
+        Get agent IDs for a specific site.
         
-        Only returns private agents. If no private agents exist for the site,
-        returns an empty list.
+        By default, only returns private agents. If allow_public_agents is True,
+        returns both public and private agents. If no matching agents exist for
+        the site, returns an empty list.
         """
         # Ensure agents are loaded
         self._load_agents_cache()
         
-        # If we have real agents, filter by site and private type
+        # If we have real agents, filter by site and agent type
         if self._existing_agents:
             site_agents = []
             for agent in self._existing_agents:
-                # Only include private agents
-                if agent.type != "private":
+                # Filter agents based on allow_public_agents setting
+                if not self.allow_public_agents and agent.type != "private":
                     continue
                     
                 # Check if agent belongs to the site (multiple ways to match)
@@ -615,11 +626,12 @@ class CSVTestManager:
                    (hasattr(agent, "site_id") and site_name in str(agent.site_id)):
                     site_agents.append(agent.id)
             
+            agent_type_str = "agents" if self.allow_public_agents else "private agents"
             if site_agents:
-                self.logger.debug(f"Found {len(site_agents)} private agents for site '{site_name}'")
+                self.logger.debug(f"Found {len(site_agents)} {agent_type_str} for site '{site_name}'")
                 return site_agents
             else:
-                self.logger.warning(f"No private agents found for site '{site_name}'")
+                self.logger.warning(f"No {agent_type_str} found for site '{site_name}'")
                 return []
         
         # No agents loaded - return empty list (will skip test creation)

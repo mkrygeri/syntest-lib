@@ -60,13 +60,27 @@ python createtests.py ./tests_to_delete.csv backend-csv-managed --delete
 
 ## Private Agents Requirement
 
-**Important:** All test creation now enforces a **private agents only** policy:
+**Important:** By default, test creation enforces a **private agents only** policy:
 
 - ✅ Only private agents are used in test creation
 - ✅ Tests without private agents are skipped with a warning
 - ✅ Agent loading filters out global/public agents automatically
 
-### Example Output with No Private Agents
+### Allowing Public Agents
+
+If you need to use public/global agents, use the `--allow-public-agents` flag:
+
+```bash
+python createtests.py tests.csv my-tag --allow-public-agents
+```
+
+Or programmatically:
+
+```python
+manager = CSVTestManager(client, generator, allow_public_agents=True)
+```
+
+### Example Output with No Private Agents (Default)
 
 ```
 Loading agents from API...
